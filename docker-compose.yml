@@ -15,6 +15,9 @@ services:
       HOSTNAME: "0.0.0.0"
       NODE_ENV: production
       HEADROOM_URL: http://headroom:8787
+      # RTK tool_result compression caps (RTK_*) are set in .env (already loaded
+      # via env_file above) so they can be retuned without a tracked-file diff.
+      # See .env.example for the documented knobs + defaults.
       # Per-call cap on the /v1/compress request (default 3000ms). Raised to
       # catch the occasional big-turn spike on a slow VM; fail-open still leaves
       # the body untouched if it's exceeded. Paired with HEADROOM_MODE=cache
