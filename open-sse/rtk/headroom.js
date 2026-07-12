@@ -5,7 +5,17 @@ import {
   openaiToOpenAIResponsesRequest,
 } from "../translator/request/openai-responses.js";
 
-const DEFAULT_TIMEOUT_MS = 3000;
+// Per-call timeout for the Headroom /v1/compress request. Default 3000ms.
+// Override via HEADROOM_TIMEOUT_MS for slow CPUs / large payloads where the
+// upstream compressor needs longer (Headroom's own compress budget is 30s).
+// Fail-open is preserved: on timeout the body is left untouched. An invalid or
+// non-positive value falls back to the 3000ms default.
+function resolveDefaultTimeoutMs() {
+  const raw = Number(process.env.HEADROOM_TIMEOUT_MS);
+  return Number.isFinite(raw) && raw > 0 ? raw : 3000;
+}
+
+const DEFAULT_TIMEOUT_MS = resolveDefaultTimeoutMs();
 
 function normalizeTimeout(value) {
   return typeof value === "number" && Number.isFinite(value) && value > 0

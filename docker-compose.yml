@@ -15,6 +15,11 @@ services:
       HOSTNAME: "0.0.0.0"
       NODE_ENV: production
       HEADROOM_URL: http://headroom:8787
+      # Per-call cap on the /v1/compress request (default 3000ms). Raised to
+      # catch the occasional big-turn spike on a slow VM; fail-open still leaves
+      # the body untouched if it's exceeded. Paired with HEADROOM_MODE=cache
+      # below, which keeps compress cost ~constant so this rarely fires.
+      HEADROOM_TIMEOUT_MS: "12000"
     depends_on:
       - headroom
 
@@ -24,7 +29,80 @@ services:
     restart: always
     ports:
       - "8787:8787"
+    environment:
+      HEADROOM_HOST: "0.0.0.0"
+      HOME: /home/nonroot
+      # --- Compression posture (max-savings on a strong host) --------------
+      # This box has spare CPU, so both CPU-bound knobs are turned ON for the
+      # largest meaningful compression ratio. On a small VM these caused the 3s
+      # call cap to fire ("operation aborted due to timeout"); the strong host
+      # absorbs them, and HEADROOM_TIMEOUT_MS=12000 is the safety net.
+      #
+      # This image accepts only two profiles: "agent-90" and "balanced".
+      # "agent-90" is the aggressive one (targets ~90% reduction) and is the
+      # most expensive per call. "balanced" is the conservative fallback used on
+      # the small VM.
+      HEADROOM_SAVINGS_PROFILE: agent-90
+      # NOTE: code-aware (tree-sitter AST) compression is NOT available in this
+      # ghcr.io/chopratejas/headroom image — the boot banner prints
+      # "Code-Aware: NOT INSTALLED (pip install headroom-ai[code])". So
+      # HEADROOM_CODE_AWARE_ENABLED is a no-op here and is intentionally unset.
+      # Re-add it only on an image built with the [code] extra.
+      # KEEP cache mode even at max savings. Delta-only compression freezes the
+      # prior turns and compresses just the newest observation, so the upstream
+      # prompt-prefix cache stays intact (~0 cache busts). "token" mode
+      # (full re-compress every turn) reports a bigger tokens_saved number but
+      # re-tokenizes the whole transcript, mutating the prefix and busting the
+      # upstream cache -> usually a HIGHER real bill. Only switch to token if the
+      # upstream provider has no prompt caching. This is an economics choice, not
+      # a compute one, so more CPU/GPU does not change it.
+      HEADROOM_MODE: cache
+      # --- Persist the model + workspace across `docker compose pull` --------
+      # fastembed / Kompress pull their ONNX models from the HuggingFace hub
+      # cache (default ~/.cache/huggingface). That path is NOT on the workspace
+      # volume, so every image recreate re-downloads them -> slow cold requests.
+      # Point HF_HOME inside the persisted workspace volume so it survives.
+      HEADROOM_WORKSPACE_DIR: /home/nonroot/.headroom
+      HF_HOME: /home/nonroot/.headroom/hf
+    volumes:
+      - headroom-workspace:/home/nonroot/.headroom
+
+  # ---------------------------------------------------------------------------
+  # Optional memory backends (qdrant + neo4j) — COMMENTED OUT.
+  # Headroom's memory feature is OFF by default (memory_enabled=False), so these
+  # are NOT needed for compression or the timeout fix. neo4j is a JVM and heavy
+  # on a small VM. Uncomment this block (and the qdrant env + volumes below) only
+  # if you enable Headroom memory. NOTE: `headroom proxy` has no env/flag to
+  # point memory at a remote neo4j (memory_neo4j_uri is hardcoded to
+  # neo4j://localhost:7687) or select the qdrant-neo4j backend — full remote
+  # memory needs the HEADROOM_PROXY_CONFIG_JSON escape hatch or a newer image.
+  # ---------------------------------------------------------------------------
+  # qdrant:
+  #   image: qdrant/qdrant:v1.17.1
+  #   container_name: 9router-qdrant
+  #   restart: always
+  #   environment:
+  #     QDRANT__SERVICE__GRPC_PORT: "6334"
+  #   volumes:
+  #     - qdrant-data:/qdrant/storage
+  #
+  # neo4j:
+  #   image: neo4j:5.26
+  #   container_name: 9router-neo4j
+  #   restart: always
+  #   environment:
+  #     NEO4J_AUTH: ${NEO4J_AUTH:-neo4j/devpassword}
+  #   volumes:
+  #     - neo4j-data:/data
+  #
+  # And on the `headroom` service add:
+  #     HEADROOM_QDRANT_HOST: qdrant
+  #     HEADROOM_QDRANT_PORT: "6333"
+  #     HEADROOM_QDRANT_GRPC_PORT: "6334"
 
 volumes:
   9router-data:
     name: 9router-data
+  headroom-workspace:
+  # qdrant-data:
+  # neo4j-data:
