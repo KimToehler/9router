@@ -24,11 +24,18 @@ services:
       # RTK tool_result compression caps (RTK_*) are set in .env (already loaded
       # via env_file above) so they can be retuned without a tracked-file diff.
       # See .env.example for the documented knobs + defaults.
-      # Per-call cap on the /v1/compress request (default 3000ms). Raised to
-      # catch the occasional big-turn spike on a slow VM; fail-open still leaves
-      # the body untouched if it's exceeded. Paired with HEADROOM_MODE=cache
-      # below, which keeps compress cost ~constant so this rarely fires.
-      HEADROOM_TIMEOUT_MS: "12000"
+      # Per-call cap on the /v1/compress request (default 3000ms). Sized for the
+      # COLD-START case: right after a headroom restart the CCR cache is empty,
+      # so the first request re-compresses ALL prior turns at once (~10-16s on
+      # this 8-core VM) before falling to the steady state where prefix-freeze
+      # means only the newest turn is compressed (~1s, served-from-cache priors).
+      # At 12s that cold turn aborted uncompressed AND wasted the CPU (the Rust
+      # worker can't be cancelled — server.py:1203). 20s lets the cold turn
+      # COMPLETE and populate the CCR, so the cache warms in one turn instead of
+      # several aborted ones. Warm turns finish in ~1s, so this ceiling only ever
+      # bites the first turn after a restart. fail-open still leaves the body
+      # untouched if exceeded. Paired with HEADROOM_MODE=cache below.
+      HEADROOM_TIMEOUT_MS: "20000"
     # No `depends_on: headroom` here. With headroom on network_mode:
     # service:9router, Docker already orders 9router BEFORE headroom (headroom
     # needs 9router's netns). Declaring the reverse dep too makes a cycle. It is
@@ -47,8 +54,19 @@ services:
     # namespace (and any published ports) belongs to 9router. 8787 stays
     # internal; nothing external needs it (the guard 404s non-loopback anyway).
     network_mode: "service:9router"
+    # Bind :8787 to loopback ONLY. headroom shares 9router's netns and 9router
+    # calls it over http://127.0.0.1:8787 — loopback is all that's needed.
+    # Binding 0.0.0.0 also listens on 9router's `default`/`traefik` bridge IPs,
+    # exposing headroom's UNAUTHENTICATED forward-proxy routes (/v1/messages ->
+    # api.anthropic.com, etc.) to every other container on those networks —
+    # that is the "proxy_open_bind" WARNING in the startup banner. The image
+    # hardcodes `CMD --host 0.0.0.0`, and an explicit CLI arg beats the
+    # HEADROOM_HOST env in Click, so we must override `command:` (not just the
+    # env) to actually bind loopback. /v1/compress is loopback-guarded either
+    # way; this closes the OTHER (forward-proxy) routes to netns neighbours.
+    command: ["--host", "127.0.0.1", "--port", "8787"]
     environment:
-      HEADROOM_HOST: "0.0.0.0"
+      HEADROOM_HOST: "127.0.0.1"
       HOME: /home/nonroot
       # --- Compression posture: max savings WITHOUT accuracy loss -----------
       # Profiles in this image: agent-90, balanced, coding, general.
@@ -69,14 +87,24 @@ services:
       # mode; HEADROOM_MODE=cache is set explicitly as belt-and-suspenders.
       HEADROOM_MODE: cache
       # --- Host-sizing knobs (8-core server) --------------------------------
-      # Bound the CPU-bound compression threadpool. Unset defaults to
-      # cpu_count (=8) — i.e. one worker per core, which under concurrent
-      # Claude Code sessions oversubscribes the box against the Node/9router
-      # runtime sharing this netns. 6 leaves ~2 cores for 9router + the OS
-      # while still absorbing bursts. Cancellation can't preempt a running
-      # Rust worker (see models.py note), so a bounded pool also fails fast
-      # under contention instead of piling threads unboundedly.
-      HEADROOM_COMPRESSION_MAX_WORKERS: "6"
+      # Serialize the content-router's cache-miss compression pass. That pass
+      # (content_router.py:3711) fans out over a ThreadPoolExecutor sized by
+      # HEADROOM_COMPRESS_WORKERS (default 4). But Kompress ONNX runs through a
+      # SINGLE execution slot by design — its semaphore limit is hardcoded to 1
+      # for onnx* backends (kompress_compressor._default_max_concurrent) because
+      # ONNX already owns its own intra/inter-op thread pool. So >1 worker does
+      # NOT parallelize inference: the extra threads pile on the 1 slot and each
+      # gives up after the 25ms acquire budget, SKIPPING its chunk uncompressed.
+      # That is exactly the "Kompress execution saturated 25ms; skipping
+      # chunk=0" flood — slower AND lossier. WORKERS=1 takes the inline serial
+      # path (content_router.py:3718), zero contention, zero skips.
+      #
+      # NOTE: the knob is HEADROOM_COMPRESS_WORKERS (read by content_router).
+      # HEADROOM_COMPRESSION_MAX_WORKERS / HEADROOM_KOMPRESS_ONNX_INTRA_THREADS
+      # do NOT affect this path: the former is only read by eval/learn tooling,
+      # and ONNX-CPU already defaults intra-op threads to the core count, so
+      # pinning =8 on an 8-core box is a no-op.
+      HEADROOM_COMPRESS_WORKERS: "1"
       # Per-message token floor for lossy "crush" compaction. Below this a
       # message is left byte-exact. The "coding" profile's setdefault is 25,
       # which crushes even small blocks (marginal savings, needless risk on
