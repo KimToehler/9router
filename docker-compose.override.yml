@@ -1,0 +1,77 @@
+# docker-compose.override.yml
+#
+# Traefik reverse-proxy config for deploying 9Router on the onara.eu server.
+# Auto-merges with docker-compose.yml on `docker compose up`.
+# Mirrors the proven onara-api Traefik pattern (network `traefik`, entrypoint
+# `websecure`, cert resolver `le`, HTTP→HTTPS handled globally by Traefik).
+#
+# ── BEFORE YOU DEPLOY ─────────────────────────────────────────────────────────
+# 1. Point apollo.mittelstaedts.com DNS at this server.
+# 2. The external `traefik` network must exist (`docker network create traefik`).
+# 3. To override the domain/resolver without editing this file, set in `.env`:
+#        NINEROUTER_HOST=apollo.mittelstaedts.com
+#        TRAEFIK_CERTRESOLVER=le
+# 4. The base docker-compose.yml still publishes `20128:20128` to the host.
+#    A compose override cannot remove a published port, so once Traefik fronts
+#    the app, remove the `ports:` block from docker-compose.yml (or firewall
+#    20128) so the app is reachable ONLY through Traefik.
+#
+# ── NOTES ─────────────────────────────────────────────────────────────────────
+# • flushInterval=-1 disables Traefik response buffering — REQUIRED here because
+#   9Router is an SSE streaming proxy; without it streamed tokens are buffered.
+# • custom-server.js only trusts X-Forwarded-For/X-Real-IP from a loopback peer.
+#   Traefik connects from its container IP on the `traefik` network (not
+#   loopback), so the app keys rate-limiting on Traefik's IP, not the real
+#   client. That is a deliberate anti-spoofing default — don't override it by
+#   trusting arbitrary forwarded headers.
+# • Single replica, so no loadbalancer sticky cookie is needed (unlike onara-api).
+# ──────────────────────────────────────────────────────────────────────────────
+
+services:
+  9router:
+    # Custom image built from THIS repo (includes the env-configurable
+    # HEADROOM_TIMEOUT_MS patch in open-sse/rtk/headroom.js, which the stock
+    # decolua/9router image does not have). Build + push it to the private
+    # Scaleway registry, then `docker compose up -d` pulls it here.
+    #
+    #   docker login rg.nl-ams.scw.cloud/onara -u nologin -p "$SCW_SECRET_KEY"
+    #   docker compose build 9router
+    #   docker compose push 9router
+    #
+    # Pinned, immutable tag so `docker compose up -d` rolls out a known build
+    # (not a moving :latest). Bump the suffix when you rebuild from a new base.
+    # Override without editing this file via NINEROUTER_IMAGE in .env.
+    image: ${NINEROUTER_IMAGE:-rg.nl-ams.scw.cloud/onara/9router:0.5.30-headroom-timeout}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      # The VM is linux/amd64; without this a build on an arm64 Mac produces an
+      # arm64-only image and `up -d` fails with "no matching manifest for
+      # linux/amd64". Cross-arch build+push needs buildx (see push command below).
+      platforms:
+        - linux/amd64
+    # Stay on `default` (to reach the headroom sidecar) AND join `traefik`.
+    networks:
+      - default
+      - traefik
+    environment:
+      # Emit Secure cookies now that TLS terminates at Traefik.
+      AUTH_COOKIE_SECURE: "true"
+    labels:
+      - traefik.enable=true
+      # Required when the container is on more than one network.
+      - traefik.docker.network=traefik
+      - traefik.http.routers.9router.rule=Host(`${NINEROUTER_HOST:-apollo.mittelstaedts.com}`)
+      - traefik.http.routers.9router.entrypoints=websecure
+      - traefik.http.routers.9router.tls.certresolver=${TRAEFIK_CERTRESOLVER:-le}
+      - traefik.http.routers.9router.service=9router
+      # The app listens on 20128 inside the container.
+      - traefik.http.services.9router.loadbalancer.server.port=20128
+      # Stream SSE straight through — no response buffering.
+      - traefik.http.services.9router.loadbalancer.responseForwarding.flushInterval=-1
+
+networks:
+  # Provided by Traefik; create once with `docker network create traefik`.
+  traefik:
+    external: true
+  default: {}

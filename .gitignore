@@ -89,3 +89,8 @@ graphify-out/*
 
 # Kiro local workspace state
 .kiro/
+
+# Local Claude/tooling + backup artifacts (do not commit)
+.omo/
+*.bak
+docker-compose.yml.bak

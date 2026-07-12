@@ -14,7 +14,13 @@ services:
       PORT: "20128"
       HOSTNAME: "0.0.0.0"
       NODE_ENV: production
-      HEADROOM_URL: http://headroom:8787
+      # headroom shares this container's network namespace (network_mode:
+      # service:9router below), so its :8787 is reachable on loopback. Loopback
+      # is REQUIRED: the new headroom image gates /v1/compress behind a
+      # loopback-only guard (127.0.0.1/::1/localhost host + Host header), so a
+      # cross-container http://headroom:8787 call would 404 and silently skip
+      # compression. Same-netns + 127.0.0.1 passes the guard.
+      HEADROOM_URL: http://127.0.0.1:8787
       # RTK tool_result compression caps (RTK_*) are set in .env (already loaded
       # via env_file above) so they can be retuned without a tracked-file diff.
       # See .env.example for the documented knobs + defaults.
@@ -23,43 +29,62 @@ services:
       # the body untouched if it's exceeded. Paired with HEADROOM_MODE=cache
       # below, which keeps compress cost ~constant so this rarely fires.
       HEADROOM_TIMEOUT_MS: "12000"
-    depends_on:
-      - headroom
+    # No `depends_on: headroom` here. With headroom on network_mode:
+    # service:9router, Docker already orders 9router BEFORE headroom (headroom
+    # needs 9router's netns). Declaring the reverse dep too makes a cycle. It is
+    # also unnecessary: the /v1/compress call is fail-open (headroom.js returns
+    # null and forwards the body untouched on any error), so 9router serves
+    # correctly whether or not headroom is up yet.
 
   headroom:
-    image: ghcr.io/chopratejas/headroom:latest
+    image: rg.nl-ams.scw.cloud/onara/headroom:latest
     container_name: headroom
     restart: always
-    ports:
-      - "8787:8787"
+    # Share 9router's network namespace so headroom's :8787 is on the SAME
+    # loopback 9router sees. Required because the new image's /v1/compress is
+    # loopback-guarded (see HEADROOM_URL note on the 9router service). A service
+    # using network_mode: service:<x> must NOT declare its own `ports:` — the
+    # namespace (and any published ports) belongs to 9router. 8787 stays
+    # internal; nothing external needs it (the guard 404s non-loopback anyway).
+    network_mode: "service:9router"
     environment:
       HEADROOM_HOST: "0.0.0.0"
       HOME: /home/nonroot
-      # --- Compression posture (max-savings on a strong host) --------------
-      # This box has spare CPU, so both CPU-bound knobs are turned ON for the
-      # largest meaningful compression ratio. On a small VM these caused the 3s
-      # call cap to fire ("operation aborted due to timeout"); the strong host
-      # absorbs them, and HEADROOM_TIMEOUT_MS=12000 is the safety net.
-      #
-      # This image accepts only two profiles: "agent-90" and "balanced".
-      # "agent-90" is the aggressive one (targets ~90% reduction) and is the
-      # most expensive per call. "balanced" is the conservative fallback used on
-      # the small VM.
-      HEADROOM_SAVINGS_PROFILE: agent-90
-      # NOTE: code-aware (tree-sitter AST) compression is NOT available in this
-      # ghcr.io/chopratejas/headroom image — the boot banner prints
-      # "Code-Aware: NOT INSTALLED (pip install headroom-ai[code])". So
-      # HEADROOM_CODE_AWARE_ENABLED is a no-op here and is intentionally unset.
-      # Re-add it only on an image built with the [code] extra.
-      # KEEP cache mode even at max savings. Delta-only compression freezes the
-      # prior turns and compresses just the newest observation, so the upstream
-      # prompt-prefix cache stays intact (~0 cache busts). "token" mode
-      # (full re-compress every turn) reports a bigger tokens_saved number but
-      # re-tokenizes the whole transcript, mutating the prefix and busting the
-      # upstream cache -> usually a HIGHER real bill. Only switch to token if the
-      # upstream provider has no prompt caching. This is an economics choice, not
-      # a compute one, so more CPU/GPU does not change it.
+      # --- Compression posture: max savings WITHOUT accuracy loss -----------
+      # Profiles in this image: agent-90, balanced, coding, general.
+      # We use "coding" (the image's out-of-box agent posture). Unlike the old
+      # "agent-90" (proxy_mode=token, force_kompress=true, compresses system
+      # messages — aggressive/lossy, busts the upstream prompt-prefix cache),
+      # "coding" is accuracy-first: proxy_mode=cache (delta-only, ~0 cache
+      # busts), lossless-first structural compaction, code-aware AST ON, and
+      # protect_reads ON (never lossy-compresses a file read). Savings emerge
+      # from lossless + relevance rather than a hard target ratio.
+      HEADROOM_SAVINGS_PROFILE: coding
+      # Code-aware (AST) compression is BUILT IN to this image (Dockerfile
+      # HEADROOM_EXTRAS=proxy,code). The old "Code-Aware: NOT INSTALLED" banner
+      # is gone; the "coding" profile already enables it. Left unset = on.
+      # KEEP cache mode: delta-only compression freezes prior turns and
+      # compresses just the newest observation, so the upstream prompt-prefix
+      # cache stays intact (~0 cache busts). "coding" already implies cache
+      # mode; HEADROOM_MODE=cache is set explicitly as belt-and-suspenders.
       HEADROOM_MODE: cache
+      # --- Host-sizing knobs (8-core server) --------------------------------
+      # Bound the CPU-bound compression threadpool. Unset defaults to
+      # cpu_count (=8) — i.e. one worker per core, which under concurrent
+      # Claude Code sessions oversubscribes the box against the Node/9router
+      # runtime sharing this netns. 6 leaves ~2 cores for 9router + the OS
+      # while still absorbing bursts. Cancellation can't preempt a running
+      # Rust worker (see models.py note), so a bounded pool also fails fast
+      # under contention instead of piling threads unboundedly.
+      HEADROOM_COMPRESSION_MAX_WORKERS: "6"
+      # Per-message token floor for lossy "crush" compaction. Below this a
+      # message is left byte-exact. The "coding" profile's setdefault is 25,
+      # which crushes even small blocks (marginal savings, needless risk on
+      # short tool outputs). 64 raises the floor so only genuinely large
+      # observations (logs, file dumps, long tool results — the 100s–1000s
+      # token blocks where savings live) get compacted. Explicit env overrides
+      # the profile (agent_savings applies values via env.setdefault).
+      HEADROOM_MIN_TOKENS: "64"
       # --- Persist the model + workspace across `docker compose pull` --------
       # fastembed / Kompress pull their ONNX models from the HuggingFace hub
       # cache (default ~/.cache/huggingface). That path is NOT on the workspace
