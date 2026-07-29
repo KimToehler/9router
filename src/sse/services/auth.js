@@ -246,7 +246,7 @@ export async function markAccountUnavailable(connectionId, status, errorText, pr
   const githubResetAtMs = githubMonthlyResetMs(status, errorText, provider);
 
   // Provider-specific precise cooldown (e.g. codex usage_limit_reached resets_at) overrides backoff
-  let shouldFallback, cooldownMs, newBackoffLevel;
+  let shouldFallback, cooldownMs, newBackoffLevel, accountFault;
   if (githubResetAtMs) {
     shouldFallback = true;
     cooldownMs = githubResetAtMs - Date.now();
@@ -259,8 +259,18 @@ export async function markAccountUnavailable(connectionId, status, errorText, pr
       : Math.min(resetsAtMs - Date.now(), MAX_RATE_LIMIT_COOLDOWN_MS);
     newBackoffLevel = 0;
   } else {
-    ({ shouldFallback, cooldownMs, newBackoffLevel } = checkFallbackError(status, errorText, backoffLevel));
+    ({ shouldFallback, cooldownMs, newBackoffLevel, accountFault } = checkFallbackError(status, errorText, backoffLevel));
   }
+
+  // Payload-fault errors (400 bad schema/param) are deterministic: the same body
+  // fails on every account. Locking here would take healthy accounts offline and
+  // burn the whole fallback chain on one malformed request. Surface it instead.
+  if (accountFault === false) {
+    const reason = typeof errorText === "string" ? errorText.slice(0, 100) : "Request rejected";
+    log.warn("AUTH", `${connectionId.slice(0, 8)} NOT locked [${status}] — request-shape error, not an account fault: ${reason}`);
+    return { shouldFallback: false, cooldownMs: 0, accountFault: false };
+  }
+
   if (!shouldFallback) return { shouldFallback: false, cooldownMs: 0 };
 
   const reason = typeof errorText === "string" ? errorText.slice(0, 100) : "Provider error";

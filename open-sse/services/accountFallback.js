@@ -18,31 +18,35 @@ export function getQuotaCooldown(backoffLevel = 0) {
  * @param {number} status - HTTP status code
  * @param {string} errorText - Error message text
  * @param {number} backoffLevel - Current backoff level for exponential backoff
- * @returns {{ shouldFallback: boolean, cooldownMs: number, newBackoffLevel?: number }}
+ * @returns {{ shouldFallback: boolean, cooldownMs: number, newBackoffLevel?: number, accountFault?: boolean }}
+ *   accountFault === false means the payload is at fault: don't lock the account
+ *   and don't burn the rest of the fallback chain on an identical request.
  */
 export function checkFallbackError(status, errorText, backoffLevel = 0) {
   const lowerError = errorText
     ? (typeof errorText === "string" ? errorText : JSON.stringify(errorText)).toLowerCase()
     : "";
 
+  const resolve = (rule) => {
+    // Payload-fault: the model loop may still fall through (a different provider
+    // can accept a body Anthropic rejects), but the account must not be locked.
+    // markAccountUnavailable() reads accountFault and skips the lock.
+    if (rule.accountFault === false) {
+      return { shouldFallback: true, cooldownMs: 0, accountFault: false };
+    }
+    if (rule.backoff) {
+      const newLevel = Math.min(backoffLevel + 1, BACKOFF_CONFIG.maxLevel);
+      return { shouldFallback: true, cooldownMs: getQuotaCooldown(newLevel), newBackoffLevel: newLevel };
+    }
+    return { shouldFallback: true, cooldownMs: rule.cooldownMs };
+  };
+
   for (const rule of ERROR_RULES) {
     // Text-based rule: match substring in error message
-    if (rule.text && lowerError && lowerError.includes(rule.text)) {
-      if (rule.backoff) {
-        const newLevel = Math.min(backoffLevel + 1, BACKOFF_CONFIG.maxLevel);
-        return { shouldFallback: true, cooldownMs: getQuotaCooldown(newLevel), newBackoffLevel: newLevel };
-      }
-      return { shouldFallback: true, cooldownMs: rule.cooldownMs };
-    }
+    if (rule.text && lowerError && lowerError.includes(rule.text)) return resolve(rule);
 
     // Status-based rule: match HTTP status code
-    if (rule.status && rule.status === status) {
-      if (rule.backoff) {
-        const newLevel = Math.min(backoffLevel + 1, BACKOFF_CONFIG.maxLevel);
-        return { shouldFallback: true, cooldownMs: getQuotaCooldown(newLevel), newBackoffLevel: newLevel };
-      }
-      return { shouldFallback: true, cooldownMs: rule.cooldownMs };
-    }
+    if (rule.status && rule.status === status) return resolve(rule);
   }
 
   // Default: transient cooldown for any unmatched error

@@ -50,11 +50,14 @@ const COOLDOWN = {
 /**
  * Unified error classification rules.
  * Checked top-to-bottom: text rules first (by order), then status rules.
- * Each rule: { text?, status?, cooldownMs?, backoff? }
+ * Each rule: { text?, status?, cooldownMs?, backoff?, accountFault? }
  *   - text: substring match (case-insensitive) on error message
  *   - status: HTTP status code match
  *   - cooldownMs: fixed cooldown duration
  *   - backoff: true = use exponential backoff (rate limit)
+ *   - accountFault: false = the request payload is at fault, not the account.
+ *     Retrying the same payload on another account produces the same error, so
+ *     the account must not be locked and the account loop must not advance.
  */
 export const ERROR_RULES = [
   // --- Text-based rules (checked first, order = priority) ---
@@ -68,6 +71,10 @@ export const ERROR_RULES = [
   { text: "overloaded",               backoff: true },
 
   // --- Status-based rules (fallback when text doesn't match) ---
+  // 400 is a deterministic request-shape rejection (bad schema, bad param).
+  // Text rules above still win, so a 400 body that says "rate limit" or
+  // "overloaded" is treated as a quota error and does lock the account.
+  { status: 400, cooldownMs: 0, accountFault: false },
   { status: 401, cooldownMs: COOLDOWN.long },
   { status: 402, cooldownMs: COOLDOWN.long },
   { status: 403, cooldownMs: COOLDOWN.long },

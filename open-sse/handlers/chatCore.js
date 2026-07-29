@@ -20,6 +20,7 @@ import { handleNonStreamingResponse } from "./chatCore/nonStreamingHandler.js";
 import { handleStreamingResponse, buildOnStreamComplete } from "./chatCore/streamingHandler.js";
 import { detectClientTool, isNativePassthrough } from "../utils/clientDetector.js";
 import { dedupeTools } from "../utils/toolDeduper.js";
+import { normalizeClaudeToolSchemas } from "../translator/concerns/toolSchema.js";
 import { injectCaveman } from "../rtk/caveman.js";
 import { injectPonytail } from "../rtk/ponytail.js";
 import { compressMessages, formatRtkLog } from "../rtk/index.js";
@@ -213,6 +214,18 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   // Token savers: applied at the final body just before dispatch
   // Covers both passthrough (source shape) and translated (target shape) flows
   const finalFormat = passthrough ? sourceFormat : targetFormat;
+
+  // Anthropic rejects anyOf/oneOf/allOf at the ROOT of a tool's input_schema.
+  // MCP servers emit those as conditional-requirement blocks, and one such tool
+  // 400s the whole request on every model in a combo. prepareClaudeRequest()
+  // covers translated bodies; passthrough skips translation entirely, so the
+  // sanitizer has to run here too. Idempotent — safe when both paths apply.
+  if (finalFormat === FORMATS.CLAUDE) {
+    const normalizedTools = normalizeClaudeToolSchemas(translatedBody);
+    if (normalizedTools.length > 0) {
+      log?.debug?.("TOOLSCHEMA", `stripped root combinators from ${normalizedTools.length}: ${normalizedTools.slice(0, 3).join(", ")}${normalizedTools.length > 3 ? "..." : ""}`);
+    }
+  }
 
   // Request line: one correlated summary (fmt + thinking + counts + account)
   if (log?.line) {

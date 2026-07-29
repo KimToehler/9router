@@ -5,6 +5,7 @@ import { adjustMaxTokens } from "./maxTokens.js";
 import { applyCloaking } from "../../utils/claudeCloaking.js";
 import { resolveSessionId } from "../../utils/sessionManager.js";
 import { isValidClaudeSignature } from "../../utils/claudeSignature.js";
+import { normalizeClaudeToolSchemas } from "../concerns/toolSchema.js";
 import { PROVIDERS } from "../../providers/index.js";
 import { getCapabilitiesForModel } from "../../providers/capabilities.js";
 import { DEFAULT_MAX_TOKENS } from "../../config/runtimeConfig.js";
@@ -325,6 +326,10 @@ export function prepareClaudeRequest(body, provider = null, apiKey = null, conne
   if (PROVIDERS[provider]?.quirks?.dropOutputConfig) {
     delete body.output_config;
   }
+
+  // Anthropic rejects anyOf/oneOf/allOf at the ROOT of a tool's input_schema
+  // (nested is fine). MCP servers put conditional-requirement blocks there.
+  normalizeClaudeToolSchemas(body);
 
   // Clamp max_tokens to the model's real output ceiling. Models whose caps
   // declare a higher maxOutput (e.g. Opus 4.8 / Sonnet 4.6 = 128000) are allowed
