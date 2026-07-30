@@ -8,6 +8,7 @@ import { buildAbortedResponsesTerminalBytes } from "../../utils/responsesStreamH
 import { buildRequestDetail, extractRequestConfig, saveUsageStats, formatDoneLine } from "./requestDetail.js";
 import { saveRequestDetail } from "@/lib/usageDb.js";
 import { SSE_HEADERS_CORS as SSE_HEADERS } from "../../utils/sseConstants.js";
+import { peekStreamForContent, withPeekedBody, EMPTY_STREAM_MESSAGE } from "../../utils/emptyStreamPeek.js";
 
 // Codex returns Responses API SSE → which client format to translate INTO, by request sourceFormat.
 // Gemini-family all map to ANTIGRAVITY decoder; unknown sources fall back to OPENAI.
@@ -78,6 +79,24 @@ export async function handleStreamingResponse({ providerResponse, provider, mode
       }),
     };
   }
+
+  // A 2xx SSE stream with no content block is a failed generation wearing a
+  // success status: combo.js sees result.ok and stops trying models. Convert to
+  // a retryable 503 so the caller retries this model, then falls through.
+  const peek = await peekStreamForContent(providerResponse);
+  if (!peek.hasContent) {
+    if (log?.errorLine) log.errorLine(reqTag, "✗", `EMPTY STREAM · ${provider}/${model} · 200 OK with no content blocks`);
+    else console.warn(`[STREAM] ${provider} | ${model} | empty stream (200 OK, no content)`);
+    streamController?.handleError?.(new Error("upstream empty stream"));
+    return {
+      success: false,
+      response: new Response(JSON.stringify({ error: { message: `[503]: ${EMPTY_STREAM_MESSAGE}` } }), {
+        status: 503,
+        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+      }),
+    };
+  }
+  providerResponse = withPeekedBody(providerResponse, peek.replacementBody);
 
   const transformStream = buildTransformStream({ provider, sourceFormat, targetFormat, userAgent, reqLogger, toolNameMap, customToolNames, model, connectionId, body, onStreamComplete, apiKey });
 

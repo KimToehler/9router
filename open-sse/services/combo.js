@@ -4,6 +4,7 @@
 
 import { checkFallbackError, formatRetryAfter } from "./accountFallback.js";
 import { unavailableResponse } from "../utils/error.js";
+import { EMPTY_STREAM_MESSAGE } from "../utils/emptyStreamPeek.js";
 import { getCapabilitiesForModel } from "../providers/capabilities.js";
 import { extractTextContent } from "../translator/formats/gemini.js";
 
@@ -86,6 +87,32 @@ export function reorderByCapabilities(models, required) {
  * @type {Map<string, { index: number, consecutiveUseCount: number }>}
  */
 const comboRotationState = new Map();
+
+// Empty upstream streams are usually deterministic for a given body (the same
+// payload keeps returning no content while neighbouring requests succeed), so a
+// single fast retry is enough to absorb a genuine blip without stalling the
+// chain before falling through to the next model.
+const EMPTY_STREAM_RETRY_ATTEMPTS = 1;
+const EMPTY_STREAM_RETRY_DELAY_MS = 1000;
+
+function isEmptyStreamFailure(status, errorText) {
+  return status === 503 && typeof errorText === "string" && errorText.includes(EMPTY_STREAM_MESSAGE);
+}
+
+// Downstream handlers shallow-copy the body and then splice into nested arrays
+// (system prompt injection), which mutates the caller's object. Re-running a
+// model on the same reference would stack duplicate injections, so each attempt
+// gets its own deep copy of the mutated containers.
+function cloneRequestBody(body) {
+  if (!body || typeof body !== "object") return body;
+  const copy = { ...body };
+  if (Array.isArray(body.system)) copy.system = body.system.map((b) => (b && typeof b === "object" ? { ...b } : b));
+  if (Array.isArray(body.messages)) copy.messages = [...body.messages];
+  if (Array.isArray(body.input)) copy.input = [...body.input];
+  if (Array.isArray(body.contents)) copy.contents = [...body.contents];
+  if (Array.isArray(body.tools)) copy.tools = [...body.tools];
+  return copy;
+}
 
 // Trailing run of items after the last assistant/model turn = the current user
 // turn. It may span several messages (e.g. text + image split across blocks),
@@ -302,8 +329,8 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
     log.info("COMBO", `Trying model ${i + 1}/${rotatedModels.length}: ${modelStr}`);
 
     try {
-      const result = await handleSingleModel(body, modelStr);
-      
+      let result = await handleSingleModel(cloneRequestBody(body), modelStr);
+
       // Success (2xx) - return response
       if (result.ok) {
         log.info("COMBO", `Model ${modelStr} succeeded`);
@@ -319,6 +346,23 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
         retryAfter = errorBody?.retryAfter || null;
       } catch {
         // Ignore JSON parse errors
+      }
+
+      for (let attempt = 1; attempt <= EMPTY_STREAM_RETRY_ATTEMPTS && isEmptyStreamFailure(result.status, errorText); attempt++) {
+        log.warn("COMBO", `Model ${modelStr} returned an empty stream, retrying ${attempt}/${EMPTY_STREAM_RETRY_ATTEMPTS}`);
+        await new Promise(r => setTimeout(r, EMPTY_STREAM_RETRY_DELAY_MS));
+        result = await handleSingleModel(cloneRequestBody(body), modelStr);
+        if (result.ok) {
+          log.info("COMBO", `Model ${modelStr} succeeded on retry ${attempt}`);
+          return result;
+        }
+        errorText = result.statusText || "";
+        try {
+          const retryBody = await result.clone().json();
+          errorText = retryBody?.error?.message || retryBody?.error || retryBody?.message || errorText;
+        } catch {
+          // Ignore JSON parse errors
+        }
       }
 
       // Track earliest retryAfter across all combo models

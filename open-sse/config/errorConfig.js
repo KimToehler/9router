@@ -69,6 +69,9 @@ export const ERROR_RULES = [
   { text: "quota exceeded",           backoff: true },
   { text: "capacity",                 backoff: true },
   { text: "overloaded",               backoff: true },
+  // An empty 200 stream repeats for the same body while neighbouring requests on
+  // the same account succeed, so it is a payload fault, not an account fault.
+  { text: "empty stream",             cooldownMs: 0, accountFault: false },
 
   // --- Status-based rules (fallback when text doesn't match) ---
   // 400 is a deterministic request-shape rejection (bad schema, bad param).
