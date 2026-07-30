@@ -314,4 +314,28 @@ describe("empty stream account handling", () => {
       expect(result.accountFault).not.toBe(false);
     });
   });
+
+  describe("#given the non-SSE guard result", () => {
+    // Only 2xx reaches that guard: chatCore.js returns early for !providerResponse.ok,
+    // so the status carried here is always a success code with an HTML/text body.
+    it("#then a generic upstream page keeps the previous cooldown", () => {
+      const result = createErrorResult(200, "[200]: Upstream returned non-SSE response (text/html)");
+      expect(result.status).toBe(200);
+      const classified = checkFallbackError(result.status, result.error);
+      expect(classified.shouldFallback).toBe(true);
+      expect(classified.cooldownMs).toBe(30000);
+    });
+
+    it("#then an upstream page naming a rate limit backs off instead of a flat wait", () => {
+      const result = createErrorResult(200, "[200]: Rate limit exceeded - please retry");
+      const classified = checkFallbackError(result.status, result.error);
+      expect(classified.newBackoffLevel).toBe(1);
+    });
+
+    it("#then the message survives for the account loop to log", () => {
+      const result = createErrorResult(200, "[200]: Attention Required! | Cloudflare");
+      expect(result.error).toContain("Cloudflare");
+      expect(result.response.status).toBe(200);
+    });
+  });
 });
