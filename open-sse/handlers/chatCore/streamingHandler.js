@@ -9,6 +9,7 @@ import { buildRequestDetail, extractRequestConfig, saveUsageStats, formatDoneLin
 import { saveRequestDetail } from "@/lib/usageDb.js";
 import { SSE_HEADERS_CORS as SSE_HEADERS } from "../../utils/sseConstants.js";
 import { peekStreamForContent, withPeekedBody, EMPTY_STREAM_MESSAGE } from "../../utils/emptyStreamPeek.js";
+import { createErrorResult } from "../../utils/error.js";
 
 // Codex returns Responses API SSE → which client format to translate INTO, by request sourceFormat.
 // Gemini-family all map to ANTIGRAVITY decoder; unknown sources fall back to OPENAI.
@@ -88,13 +89,10 @@ export async function handleStreamingResponse({ providerResponse, provider, mode
     if (log?.errorLine) log.errorLine(reqTag, "✗", `EMPTY STREAM · ${provider}/${model} · 200 OK with no content blocks`);
     else console.warn(`[STREAM] ${provider} | ${model} | empty stream (200 OK, no content)`);
     streamController?.handleError?.(new Error("upstream empty stream"));
-    return {
-      success: false,
-      response: new Response(JSON.stringify({ error: { message: `[503]: ${EMPTY_STREAM_MESSAGE}` } }), {
-        status: 503,
-        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-      }),
-    };
+    // status/error must be populated: the account loop in src/sse/handlers/chat.js
+    // feeds them to markAccountUnavailable(), and omitting them falls through to
+    // the default 30s cooldown instead of the accountFault:false rule.
+    return createErrorResult(503, `[503]: ${EMPTY_STREAM_MESSAGE}`);
   }
   providerResponse = withPeekedBody(providerResponse, peek.replacementBody);
 

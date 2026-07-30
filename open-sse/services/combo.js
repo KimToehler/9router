@@ -99,18 +99,37 @@ function isEmptyStreamFailure(status, errorText) {
   return status === 503 && typeof errorText === "string" && errorText.includes(EMPTY_STREAM_MESSAGE);
 }
 
-// Downstream handlers shallow-copy the body and then splice into nested arrays
-// (system prompt injection), which mutates the caller's object. Re-running a
-// model on the same reference would stack duplicate injections, so each attempt
-// gets its own deep copy of the mutated containers.
+// Downstream handlers shallow-copy the body and then mutate nested structures in
+// place: injectClaudeSystem splices body.system, injectMessagesSystem rewrites
+// messages[i].content, injectGeminiSystem pushes into systemInstruction.parts.
+// Reusing one reference across attempts therefore stacks duplicate injections and
+// corrupts the cache prefix. Enumerating the mutable paths by hand has already
+// missed shapes, so deep-copy the whole body and only fall back to a per-field
+// copy when the payload is not structured-cloneable (e.g. a stream or handle).
 function cloneRequestBody(body) {
   if (!body || typeof body !== "object") return body;
+  try {
+    return structuredClone(body);
+  } catch {
+    return shallowCloneMutableContainers(body);
+  }
+}
+
+function shallowCloneMutableContainers(body) {
   const copy = { ...body };
-  if (Array.isArray(body.system)) copy.system = body.system.map((b) => (b && typeof b === "object" ? { ...b } : b));
-  if (Array.isArray(body.messages)) copy.messages = [...body.messages];
-  if (Array.isArray(body.input)) copy.input = [...body.input];
-  if (Array.isArray(body.contents)) copy.contents = [...body.contents];
-  if (Array.isArray(body.tools)) copy.tools = [...body.tools];
+  const cloneEach = (arr) => arr.map((item) => (item && typeof item === "object" ? { ...item } : item));
+  if (Array.isArray(body.system)) copy.system = cloneEach(body.system);
+  if (Array.isArray(body.messages)) copy.messages = cloneEach(body.messages);
+  if (Array.isArray(body.input)) copy.input = cloneEach(body.input);
+  if (Array.isArray(body.contents)) copy.contents = cloneEach(body.contents);
+  if (Array.isArray(body.tools)) copy.tools = cloneEach(body.tools);
+  for (const key of ["system_instruction", "systemInstruction"]) {
+    const sys = body[key];
+    if (sys && typeof sys === "object") {
+      copy[key] = { ...sys, ...(Array.isArray(sys.parts) ? { parts: cloneEach(sys.parts) } : {}) };
+    }
+  }
+  if (body.request && typeof body.request === "object") copy.request = shallowCloneMutableContainers(body.request);
   return copy;
 }
 

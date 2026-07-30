@@ -3,6 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 import { handleComboChat } from "../../open-sse/services/combo.js";
 import { peekStreamForContent, EMPTY_STREAM_MESSAGE } from "../../open-sse/utils/emptyStreamPeek.js";
 import { checkFallbackError } from "../../open-sse/services/accountFallback.js";
+import { createErrorResult } from "../../open-sse/utils/error.js";
 
 const log = { info: () => {}, warn: () => {}, debug: () => {} };
 
@@ -82,6 +83,47 @@ describe("empty stream detection", () => {
       const peek = await peekStreamForContent(res);
       expect(peek.hasContent).toBe(true);
       expect(peek.reason).toBe("not-sse");
+    });
+  });
+
+  describe("#given frames that only look like content to a substring match", () => {
+    const cases = [
+      ["openai terminal-only turn", 'data: {"choices":[{"delta":{"role":"assistant"},"finish_reason":null}]}\n\ndata: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n'],
+      ["openai empty tool_calls array", 'data: {"choices":[{"delta":{"content":"","tool_calls":[]}}]}\n\n'],
+      ["gemini empty parts", 'data: {"candidates":[{"content":{"parts":[]}}]}\n\n'],
+    ];
+    for (const [name, body] of cases) {
+      it(`#then ${name} is still empty`, async () => {
+        const peek = await peekStreamForContent(sseResponse(body));
+        expect(peek.hasContent).toBe(false);
+      });
+    }
+  });
+
+  describe("#given real content in each upstream format", () => {
+    const cases = [
+      ["openai text", 'data: {"choices":[{"delta":{"content":"hi"}}]}\n\n'],
+      ["openai tool call", 'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"name":"x"}}]}}]}\n\n'],
+      ["claude tool_use", 'data: {"type":"content_block_start","content_block":{"type":"tool_use","name":"echo"}}\n\n'],
+      ["gemini functionCall", 'data: {"candidates":[{"content":{"parts":[{"functionCall":{"name":"x"}}]}}]}\n\n'],
+      ["gemini text", 'data: {"candidates":[{"content":{"parts":[{"text":"hi"}]}}]}\n\n'],
+      ["responses output_text delta", 'event: response.output_text.delta\ndata: {"type":"response.output_text.delta","delta":"hi"}\n\n'],
+    ];
+    for (const [name, body] of cases) {
+      it(`#then ${name} counts as content`, async () => {
+        const peek = await peekStreamForContent(sseResponse(body));
+        expect(peek.hasContent).toBe(true);
+      });
+    }
+  });
+
+  describe("#given a body whose lock is already held", () => {
+    it("#then it passes through instead of throwing", async () => {
+      const res = sseResponse(CLAUDE_WITH_TEXT);
+      res.body.getReader();
+      const peek = await peekStreamForContent(res);
+      expect(peek.hasContent).toBe(true);
+      expect(peek.reason).toBe("body-locked");
     });
   });
 });
@@ -165,6 +207,34 @@ describe("empty stream combo behaviour", () => {
       expect(body.system).toHaveLength(2);
     });
   });
+
+  describe("#given an openai body whose system message is appended to in place", () => {
+    it("#then the injection never stacks across attempts", async () => {
+      const body = { messages: [{ role: "system", content: "BASE" }, { role: "user", content: "hi" }] };
+      const handleSingleModel = vi.fn(async (b) => {
+        b.messages[0].content = `${b.messages[0].content}\n\nCAVEMAN`;
+        return emptyStreamResponse();
+      });
+
+      await handleComboChat({ body, models: ["cx/sol", "glm/glm"], handleSingleModel, log });
+
+      expect(body.messages[0].content).toBe("BASE");
+    });
+  });
+
+  describe("#given a gemini body whose systemInstruction parts are pushed to", () => {
+    it("#then the injection never stacks across attempts", async () => {
+      const body = { systemInstruction: { parts: [{ text: "BASE" }] }, contents: [] };
+      const handleSingleModel = vi.fn(async (b) => {
+        b.systemInstruction.parts.push({ text: "CAVEMAN" });
+        return emptyStreamResponse();
+      });
+
+      await handleComboChat({ body, models: ["gem/pro", "glm/glm"], handleSingleModel, log });
+
+      expect(body.systemInstruction.parts).toHaveLength(1);
+    });
+  });
 });
 
 describe("empty stream account handling", () => {
@@ -174,6 +244,20 @@ describe("empty stream account handling", () => {
       expect(result.shouldFallback).toBe(true);
       expect(result.accountFault).toBe(false);
       expect(result.cooldownMs).toBe(0);
+    });
+  });
+
+  describe("#given the result object the streaming handler actually returns", () => {
+    it("#then it carries status and error so the account loop can classify it", () => {
+      // chat.js passes result.status / result.error to markAccountUnavailable().
+      // A bare { success, response } silently degrades to the default 30s lock.
+      const result = createErrorResult(503, `[503]: ${EMPTY_STREAM_MESSAGE}`);
+      expect(result.status).toBe(503);
+      expect(result.error).toContain(EMPTY_STREAM_MESSAGE);
+
+      const classified = checkFallbackError(result.status, result.error);
+      expect(classified.accountFault).toBe(false);
+      expect(classified.cooldownMs).toBe(0);
     });
   });
 
