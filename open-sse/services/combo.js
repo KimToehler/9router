@@ -95,6 +95,12 @@ const comboRotationState = new Map();
 const EMPTY_STREAM_RETRY_ATTEMPTS = 1;
 const EMPTY_STREAM_RETRY_DELAY_MS = 1000;
 
+// Concurrent lanes hitting the same broken upstream fail together, so a fixed
+// delay would make them all retry in lockstep. Spread them over ±50%.
+function emptyStreamRetryDelay() {
+  return Math.round(EMPTY_STREAM_RETRY_DELAY_MS * (0.5 + Math.random()));
+}
+
 function isEmptyStreamFailure(status, errorText) {
   return status === 503 && typeof errorText === "string" && errorText.includes(EMPTY_STREAM_MESSAGE);
 }
@@ -369,7 +375,7 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
 
       for (let attempt = 1; attempt <= EMPTY_STREAM_RETRY_ATTEMPTS && isEmptyStreamFailure(result.status, errorText); attempt++) {
         log.warn("COMBO", `Model ${modelStr} returned an empty stream, retrying ${attempt}/${EMPTY_STREAM_RETRY_ATTEMPTS}`);
-        await new Promise(r => setTimeout(r, EMPTY_STREAM_RETRY_DELAY_MS));
+        await new Promise(r => setTimeout(r, emptyStreamRetryDelay()));
         result = await handleSingleModel(cloneRequestBody(body), modelStr);
         if (result.ok) {
           log.info("COMBO", `Model ${modelStr} succeeded on retry ${attempt}`);
@@ -618,7 +624,7 @@ export async function handleFusionChat({ body, models, handleSingleModel, log, c
 
   // A single-model fusion has nothing to fuse — just answer directly.
   if (panel.length === 1) {
-    return handleSingleModel(body, panel[0]);
+    return handleSingleModel(cloneRequestBody(body), panel[0]);
   }
 
   const cfg = { ...FUSION_DEFAULTS, ...(tuning || {}) };
@@ -640,8 +646,11 @@ export async function handleFusionChat({ body, models, handleSingleModel, log, c
     panelBody.input = flattenToolHistory(panelBody.input);
   }
 
+  // Each panel model gets its own copy: these calls run concurrently and the
+  // downstream system-prompt injectors mutate nested structures in place, so a
+  // shared body would interleave injections non-deterministically.
   const t0 = Date.now();
-  const calls = panel.map((m) => withTimeout(handleSingleModel(panelBody, m, true), cfg.panelHardTimeoutMs));
+  const calls = panel.map((m) => withTimeout(handleSingleModel(cloneRequestBody(panelBody), m, true), cfg.panelHardTimeoutMs));
   const settled = await collectPanel(calls, { ...cfg, minPanel });
   log.info("FUSION", `fan-out collected in ${Date.now() - t0}ms`);
 
@@ -678,11 +687,11 @@ export async function handleFusionChat({ body, models, handleSingleModel, log, c
   }
   if (answers.length === 1) {
     log.info("FUSION", `Only ${answers[0].model} succeeded — answering directly (no fusion)`);
-    return handleSingleModel(body, answers[0].model);
+    return handleSingleModel(cloneRequestBody(body), answers[0].model);
   }
 
   // 4. Judge analyzes + writes one final answer (streams to client if requested).
-  const judgeBody = appendUserTurn(body, buildJudgePrompt(answers));
+  const judgeBody = appendUserTurn(cloneRequestBody(body), buildJudgePrompt(answers));
   log.info("FUSION", `Judging ${answers.length} answers with ${judge}`);
   return handleSingleModel(judgeBody, judge);
 }

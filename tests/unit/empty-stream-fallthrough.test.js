@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 
-import { handleComboChat } from "../../open-sse/services/combo.js";
+import { handleComboChat, handleFusionChat } from "../../open-sse/services/combo.js";
 import { peekStreamForContent, EMPTY_STREAM_MESSAGE } from "../../open-sse/utils/emptyStreamPeek.js";
 import { checkFallbackError } from "../../open-sse/services/accountFallback.js";
 import { createErrorResult } from "../../open-sse/utils/error.js";
@@ -233,6 +233,52 @@ describe("empty stream combo behaviour", () => {
       await handleComboChat({ body, models: ["gem/pro", "glm/glm"], handleSingleModel, log });
 
       expect(body.systemInstruction.parts).toHaveLength(1);
+    });
+  });
+});
+
+describe("fusion panel body isolation", () => {
+  describe("#given a panel that fans out concurrently over a shared body", () => {
+    it("#then every model sees the caller's original system prompt", async () => {
+      const body = {
+        messages: [{ role: "user", content: "hi" }],
+        system: [{ type: "text", text: "BASE" }],
+      };
+      const seen = [];
+      const handleSingleModel = vi.fn(async (b, model, isPanel) => {
+        if (isPanel) {
+          seen.push(b.system.map((s) => s.text).join("|"));
+          // mirrors injectClaudeSystem mutating the body in place
+          b.system.push({ type: "text", text: `INJECTED-${model}` });
+          return okResponse(`answer from ${model}`);
+        }
+        return okResponse("judged");
+      });
+
+      await handleFusionChat({
+        body,
+        models: ["a/one", "b/two", "c/three"],
+        handleSingleModel,
+        log,
+        judgeModel: "a/one",
+      });
+
+      expect(seen).toEqual(["BASE", "BASE", "BASE"]);
+      expect(body.system).toHaveLength(1);
+    });
+  });
+
+  describe("#given a single-model fusion panel", () => {
+    it("#then the caller's body is not mutated", async () => {
+      const body = { messages: [{ role: "user", content: "hi" }], system: [{ type: "text", text: "BASE" }] };
+      const handleSingleModel = vi.fn(async (b) => {
+        b.system.push({ type: "text", text: "INJECTED" });
+        return okResponse("solo");
+      });
+
+      await handleFusionChat({ body, models: ["a/only"], handleSingleModel, log });
+
+      expect(body.system).toHaveLength(1);
     });
   });
 });
