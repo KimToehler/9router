@@ -94,3 +94,4 @@ graphify-out/*
 .omo/
 *.bak
 docker-compose.yml.bak
+.worktrees/
