@@ -238,10 +238,6 @@ function comboMatchesKinds(combo, kindFilter) {
 }
 
 /**
- * Build OpenAI-format models list filtered by service kinds.
- * @param {string[]} kindFilter - List of service kinds to include (e.g. ["llm"], ["webSearch","webFetch"]).
- */
-/**
  * Build the /v1/models entry for one combo.
  *
  * A combo is advertised under a single opaque name, but any of its members can
@@ -272,6 +268,10 @@ export function buildComboEntry(combo) {
   return entry;
 }
 
+/**
+ * Build OpenAI-format models list filtered by service kinds.
+ * @param {string[]} kindFilter - List of service kinds to include (e.g. ["llm"], ["webSearch","webFetch"]).
+ */
 export async function buildModelsList(kindFilter, options = {}) {
   // When this header is present, the /v1/models request came from another
   // 9router instance's fetchCompatibleModelIds — skip dynamic fetch to break

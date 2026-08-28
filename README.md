@@ -1476,6 +1476,25 @@ Authorization: Bearer your-api-key
 → Returns all models + combos in OpenAI format
 ```
 
+#### Combo upstream candidates
+
+`upstream_models` is an optional 9Router extension present only on combo entries in `GET /v1/models`. It is omitted entirely when a combo has no valid members. The array lists candidate members in configured preference order, which is the order the fallback loop walks them.
+
+This field is strictly additive and schema-compatible: OpenAI-format clients that ignore unknown fields are unaffected, and no standard model entry carries it. There is deliberately no singular `upstream_model` at catalog time because nothing has served a request yet; naming one would be a guess. The authoritative runtime answer is the `X-9Router-Upstream-Model` response header, which reports the member that actually served the request.
+
+```json
+{
+  "id": "production-chat",
+  "object": "model",
+  "owned_by": "combo",
+  "upstream_models": [
+    "anthropic/claude-opus-5",
+    "openai/gpt-5.6-sol",
+    "glm/glm-5.2"
+  ]
+}
+```
+
 ## 📧 Support
 
 - **Website**: [9router.com](https://9router.com)
