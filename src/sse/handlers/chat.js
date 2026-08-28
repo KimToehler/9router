@@ -27,6 +27,14 @@ import { stripModelContextMarker } from "open-sse/utils/modelMarkers.js";
 import { withUpstreamModel } from "open-sse/services/combo.js";
 
 /**
+ * Select model id shown to client after request succeeds.
+ */
+export function resolveClientFacingModelId(credentials, model, clientModelId, _provider) {
+  const prefix = credentials.providerSpecificData?.prefix?.trim();
+  return prefix ? `${prefix}/${model}` : (clientModelId || model);
+}
+
+/**
  * Handle chat completion request
  * Supports: OpenAI, Claude, Gemini, OpenAI Responses API formats
  * Format detection and translation handled by translator
@@ -311,9 +319,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
     // Name provider/model that actually served request with client-facing id.
     // withUpstreamModel is first-writer-wins, so nested combo wrappers preserve
     // this leaf stamp instead of replacing it with a combo member or name.
-    const clientFacingModelId = credentials.providerSpecificData?.prefix?.trim()
-      ? `${credentials.providerSpecificData.prefix.trim()}/${model}`
-      : clientModelId;
+    const clientFacingModelId = resolveClientFacingModelId(credentials, model, clientModelId);
     if (result.success) return withUpstreamModel(result.response, clientFacingModelId);
 
     // Antigravity 409/429: refresh live quota to get exact resetAt before locking

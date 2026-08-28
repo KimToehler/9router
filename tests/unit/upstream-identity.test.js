@@ -277,6 +277,32 @@ describe("client-facing upstream identity", () => {
     const anthropic = await ctx.getModelInfo("anthropic/claude-opus-5");
     expect(anthropic).toMatchObject({ provider: "anthropic", model: "claude-opus-5" });
     expect(anthropic.clientModelId).toBe("anthropic/claude-opus-5");
+
+    await expect(ctx.getModelInfo("ds/deepseek-v4-pro")).resolves.toMatchObject({
+      provider: "deepseek",
+      model: "deepseek-v4-pro",
+      clientModelId: "ds/deepseek-v4-pro",
+    });
+    await expect(ctx.getModelInfo("pplx/sonar")).resolves.toMatchObject({
+      provider: "perplexity",
+      model: "sonar",
+      clientModelId: "pplx/sonar",
+    });
+    await expect(ctx.getModelInfo("cf/some-model")).resolves.toMatchObject({
+      provider: "cloudflare-ai",
+      model: "some-model",
+      clientModelId: "cf/some-model",
+    });
+  });
+
+  it("#given connection prefix variants #when upstream id resolves #then uses prefix or safe client label", async () => {
+    const { resolveClientFacingModelId } = await import("@/sse/handlers/chat.js");
+    const clientModelId = "ds/deepseek-v4-pro";
+
+    expect(resolveClientFacingModelId({}, "deepseek-v4-pro", clientModelId)).toBe(clientModelId);
+    expect(resolveClientFacingModelId({ providerSpecificData: { prefix: "myco" } }, "deepseek-v4-pro", clientModelId)).toBe("myco/deepseek-v4-pro");
+    expect(resolveClientFacingModelId({ providerSpecificData: { prefix: "   " } }, "deepseek-v4-pro", clientModelId)).toBe(clientModelId);
+    expect(resolveClientFacingModelId({}, "deepseek-v4-pro", undefined)).toBe("deepseek-v4-pro");
   });
 
   it("#given a provider node prefix #when model info resolves #then display id keeps user prefix", async () => {
