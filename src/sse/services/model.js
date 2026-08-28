@@ -2,7 +2,6 @@
 import { getModelAliases, getComboByName, getProviderNodes } from "@/lib/localDb";
 import { parseModel as parseModelCore, resolveModelAliasFromMap, getModelInfoCore } from "open-sse/services/model.js";
 import REGISTRY from "open-sse/providers/registry/index.js";
-import { PROVIDER_ID_TO_ALIAS } from "open-sse/config/providerModels.js";
 import { getProviderAlias } from "@/shared/constants/providers.js";
 
 // Local provider alias overrides (HMR-friendly, applied on top of open-sse map)
@@ -69,7 +68,7 @@ export async function getModelInfo(modelStr) {
     }
     return withClientModelId(
       { provider: parsed.provider, model: parsed.model },
-      `${getProviderAlias(parsed.provider) || PROVIDER_ID_TO_ALIAS[parsed.provider] || parsed.provider}/${parsed.model}`,
+      `${getProviderAlias(parsed.provider)}/${parsed.model}`,
     );
   }
 
@@ -85,7 +84,7 @@ export async function getModelInfo(modelStr) {
   const resolved = await getModelInfoCore(modelStr, getModelAliases);
   return withClientModelId(
     resolved,
-    `${getProviderAlias(resolved.provider) || PROVIDER_ID_TO_ALIAS[resolved.provider] || resolved.provider}/${resolved.model}`,
+    `${getProviderAlias(resolved.provider)}/${resolved.model}`,
   );
 }
 

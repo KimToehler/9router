@@ -31,7 +31,7 @@ import { withUpstreamModel } from "open-sse/services/combo.js";
  */
 export function resolveClientFacingModelId(credentials, model, clientModelId) {
   const prefix = credentials.providerSpecificData?.prefix?.trim();
-  return prefix ? `${prefix}/${model}` : (clientModelId || model);
+  return prefix ? `${prefix}/${model}` : clientModelId;
 }
 
 /**

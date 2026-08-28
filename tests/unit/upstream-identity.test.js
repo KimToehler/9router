@@ -299,6 +299,30 @@ describe("client-facing upstream identity", () => {
     });
   });
 
+  it("#given model aliases #when model info resolves #then registry display aliases survive string and object forms", async () => {
+    vi.resetModules();
+    vi.doMock("@/lib/localDb", () => ({
+      getModelAliases: vi.fn(async () => ({
+        fast: "ds/deepseek-chat",
+        smart: { provider: "pplx", model: "sonar" },
+      })),
+      getComboByName: vi.fn(async () => null),
+      getProviderNodes: vi.fn(async () => []),
+    }));
+    const { getModelInfo } = await import("@/sse/services/model.js");
+
+    await expect(getModelInfo("fast")).resolves.toMatchObject({
+      provider: "deepseek",
+      model: "deepseek-chat",
+      clientModelId: "ds/deepseek-chat",
+    });
+    await expect(getModelInfo("smart")).resolves.toMatchObject({
+      provider: "perplexity",
+      model: "sonar",
+      clientModelId: "pplx/sonar",
+    });
+  });
+
   it("#given connection prefix variants #when upstream id resolves #then uses prefix or safe client label", async () => {
     const { resolveClientFacingModelId } = await import("@/sse/handlers/chat.js");
     const clientModelId = "ds/deepseek-v4-pro";
@@ -306,7 +330,7 @@ describe("client-facing upstream identity", () => {
     expect(resolveClientFacingModelId({}, "deepseek-v4-pro", clientModelId)).toBe(clientModelId);
     expect(resolveClientFacingModelId({ providerSpecificData: { prefix: "myco" } }, "deepseek-v4-pro", clientModelId)).toBe("myco/deepseek-v4-pro");
     expect(resolveClientFacingModelId({ providerSpecificData: { prefix: "   " } }, "deepseek-v4-pro", clientModelId)).toBe(clientModelId);
-    expect(resolveClientFacingModelId({}, "deepseek-v4-pro", undefined)).toBe("deepseek-v4-pro");
+    expect(resolveClientFacingModelId({}, "deepseek-v4-pro", undefined)).toBeUndefined();
   });
 
   it("#given a successful real chat account loop #when a connection has a prefix #then stamped header keeps prefix", async () => {
