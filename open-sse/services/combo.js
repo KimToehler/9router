@@ -5,6 +5,7 @@
 import { checkFallbackError, formatRetryAfter } from "./accountFallback.js";
 import { unavailableResponse } from "../utils/error.js";
 import { EMPTY_STREAM_MESSAGE } from "../utils/emptyStreamPeek.js";
+import { JSON_HEADERS_CORS } from "../utils/sseConstants.js";
 import { getCapabilitiesForModel } from "../providers/capabilities.js";
 import { extractTextContent } from "../translator/formats/gemini.js";
 
@@ -484,7 +485,7 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
   log.warn("COMBO", `All models failed | ${msg}`);
   return new Response(
     JSON.stringify({ error: { message: msg } }),
-    { status, headers: { "Content-Type": "application/json" } }
+    { status, headers: JSON_HEADERS_CORS }
   );
 }
 

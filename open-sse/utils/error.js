@@ -1,4 +1,5 @@
 import { ERROR_TYPES, DEFAULT_ERROR_MESSAGES } from "../config/errorConfig.js";
+import { JSON_HEADERS_CORS } from "./sseConstants.js";
 
 /**
  * Build OpenAI-compatible error response body
@@ -30,10 +31,7 @@ export function buildErrorBody(statusCode, message) {
 export function errorResponse(statusCode, message) {
   return new Response(JSON.stringify(buildErrorBody(statusCode, message)), {
     status: statusCode,
-    headers: {
-      "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*"
-    }
+    headers: JSON_HEADERS_CORS
   });
 }
 
@@ -114,14 +112,17 @@ export function createErrorResult(statusCode, message, resetsAtMs) {
  * @returns {Response}
  */
 export function unavailableResponse(statusCode, message, retryAfter, retryAfterHuman) {
-  const retryAfterSec = Math.max(Math.ceil((new Date(retryAfter).getTime() - Date.now()) / 1000), 1);
+  const retryAfterMs = new Date(retryAfter).getTime();
+  const retryAfterSec = Number.isFinite(retryAfterMs)
+    ? Math.max(Math.ceil((retryAfterMs - Date.now()) / 1000), 1)
+    : 1;
   const msg = `${message} (${retryAfterHuman})`;
   return new Response(
     JSON.stringify({ error: { message: msg } }),
     {
       status: statusCode,
       headers: {
-        "Content-Type": "application/json",
+        ...JSON_HEADERS_CORS,
         "Retry-After": String(retryAfterSec)
       }
     }
