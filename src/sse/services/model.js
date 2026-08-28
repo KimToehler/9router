@@ -2,6 +2,7 @@
 import { getModelAliases, getComboByName, getProviderNodes } from "@/lib/localDb";
 import { parseModel as parseModelCore, resolveModelAliasFromMap, getModelInfoCore } from "open-sse/services/model.js";
 import REGISTRY from "open-sse/providers/registry/index.js";
+import { PROVIDER_ID_TO_ALIAS } from "open-sse/config/providerModels.js";
 
 // Local provider alias overrides (HMR-friendly, applied on top of open-sse map)
 const LOCAL_PROVIDER_ALIASES = {
@@ -10,6 +11,11 @@ const LOCAL_PROVIDER_ALIASES = {
 };
 
 const RESERVED_PROVIDER_PREFIXES = new Set(Object.keys(LOCAL_PROVIDER_ALIASES));
+
+function withClientModelId(modelInfo, clientModelId) {
+  Object.defineProperty(modelInfo, "clientModelId", { value: clientModelId });
+  return modelInfo;
+}
 for (const entry of REGISTRY) {
   RESERVED_PROVIDER_PREFIXES.add(entry.id);
   if (entry.alias) RESERVED_PROVIDER_PREFIXES.add(entry.alias);
@@ -45,25 +51,25 @@ export async function getModelInfo(modelStr) {
       const openaiNodes = await getProviderNodes({ type: "openai-compatible" });
       const matchedOpenAI = openaiNodes.find((node) => node.prefix === parsed.providerAlias);
       if (matchedOpenAI) {
-        return { provider: matchedOpenAI.id, model: parsed.model };
+        return withClientModelId({ provider: matchedOpenAI.id, model: parsed.model }, `${matchedOpenAI.prefix}/${parsed.model}`);
       }
 
       const anthropicNodes = await getProviderNodes({ type: "anthropic-compatible" });
       const matchedAnthropic = anthropicNodes.find((node) => node.prefix === parsed.providerAlias);
       if (matchedAnthropic) {
-        return { provider: matchedAnthropic.id, model: parsed.model };
+        return withClientModelId({ provider: matchedAnthropic.id, model: parsed.model }, `${matchedAnthropic.prefix}/${parsed.model}`);
       }
 
       const embeddingNodes = await getProviderNodes({ type: "custom-embedding" });
       const matchedEmbedding = embeddingNodes.find((node) => node.prefix === parsed.providerAlias);
       if (matchedEmbedding) {
-        return { provider: matchedEmbedding.id, model: parsed.model };
+        return withClientModelId({ provider: matchedEmbedding.id, model: parsed.model }, `${matchedEmbedding.prefix}/${parsed.model}`);
       }
     }
-    return {
-      provider: parsed.provider,
-      model: parsed.model
-    };
+    return withClientModelId(
+      { provider: parsed.provider, model: parsed.model },
+      `${PROVIDER_ID_TO_ALIAS[parsed.provider] || parsed.provider}/${parsed.model}`,
+    );
   }
 
   // Check if this is a combo name before resolving as alias
@@ -75,7 +81,11 @@ export async function getModelInfo(modelStr) {
     return { provider: null, model: parsed.model };
   }
 
-  return getModelInfoCore(modelStr, getModelAliases);
+  const resolved = await getModelInfoCore(modelStr, getModelAliases);
+  return withClientModelId(
+    resolved,
+    `${PROVIDER_ID_TO_ALIAS[resolved.provider] || resolved.provider}/${resolved.model}`,
+  );
 }
 
 /**

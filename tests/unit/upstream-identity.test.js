@@ -1,4 +1,7 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import {
   handleComboChat,
@@ -29,6 +32,24 @@ function jsonResponse(payload, status = 200) {
     status,
     headers: { "Content-Type": "application/json" },
   });
+}
+
+const originalDataDir = process.env.DATA_DIR;
+
+async function setupModelInfo() {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "9router-upstream-identity-"));
+  process.env.DATA_DIR = tempDir;
+  vi.resetModules();
+
+  const { createProviderNode } = await import("@/models/index.js");
+  const { getModelInfo } = await import("@/sse/services/model.js");
+  return {
+    createProviderNode,
+    getModelInfo,
+    cleanup() {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    },
+  };
 }
 
 describe("combo upstream identity header", () => {
@@ -227,5 +248,52 @@ describe("combo upstream identity header", () => {
 
     expect(() => withUpstreamModel(response, "x/y")).not.toThrow();
     expect(withUpstreamModel(response, "x/y").status).toBe(204);
+  });
+});
+
+describe("client-facing upstream identity", () => {
+  let cleanup = () => {};
+
+  afterEach(() => {
+    cleanup();
+    cleanup = () => {};
+    vi.resetModules();
+    if (originalDataDir === undefined) delete process.env.DATA_DIR;
+    else process.env.DATA_DIR = originalDataDir;
+  });
+
+  it("#given registry aliases #when model info resolves #then display ids match advertised aliases", async () => {
+    const ctx = await setupModelInfo();
+    cleanup = ctx.cleanup;
+
+    const cc = await ctx.getModelInfo("cc/claude-opus-4-7");
+    expect(cc).toMatchObject({ provider: "claude", model: "claude-opus-4-7" });
+    expect(cc.clientModelId).toBe("cc/claude-opus-4-7");
+
+    const kr = await ctx.getModelInfo("kr/glm-5");
+    expect(kr).toMatchObject({ provider: "kiro", model: "glm-5" });
+    expect(kr.clientModelId).toBe("kr/glm-5");
+
+    const anthropic = await ctx.getModelInfo("anthropic/claude-opus-5");
+    expect(anthropic).toMatchObject({ provider: "anthropic", model: "claude-opus-5" });
+    expect(anthropic.clientModelId).toBe("anthropic/claude-opus-5");
+  });
+
+  it("#given a provider node prefix #when model info resolves #then display id keeps user prefix", async () => {
+    const ctx = await setupModelInfo();
+    cleanup = ctx.cleanup;
+    await ctx.createProviderNode({
+      id: "openai-compatible-chat-abc123",
+      type: "openai-compatible",
+      name: "MyCo",
+      prefix: "myco",
+      apiType: "chat",
+      baseUrl: "https://compatible.test/v1",
+    });
+
+    const result = await ctx.getModelInfo("myco/gpt-4o");
+    expect(result).toMatchObject({ provider: "openai-compatible-chat-abc123", model: "gpt-4o" });
+    expect(result.clientModelId).toBe("myco/gpt-4o");
+    expect(result.clientModelId).not.toMatch(/^openai-compatible-/);
   });
 });

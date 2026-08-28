@@ -219,7 +219,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
     return errorResponse(HTTP_STATUS.BAD_REQUEST, "Invalid model format");
   }
 
-  const { provider, model } = modelInfo;
+  const { provider, model, clientModelId } = modelInfo;
 
   // Routing shown in the unified "▶" line (client model → provider/model)
 
@@ -308,13 +308,13 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       }
     });
 
-    // Name the provider/model that actually served this request. For a direct
-    // request modelStr is already concrete, but for an alias (or a combo member)
-    // it is opaque to the client, which cannot otherwise tell which vendor
-    // answered - and vendor decides prompt style, reasoning effort, and tool
-    // schema. handleComboChat re-stamps this with the winning member, so the
-    // combo case reports the member rather than the combo name.
-    if (result.success) return withUpstreamModel(result.response, `${provider}/${model}`);
+    // Name provider/model that actually served request with client-facing id.
+    // withUpstreamModel is first-writer-wins, so nested combo wrappers preserve
+    // this leaf stamp instead of replacing it with a combo member or name.
+    const clientFacingModelId = credentials.providerSpecificData?.prefix?.trim()
+      ? `${credentials.providerSpecificData.prefix.trim()}/${model}`
+      : clientModelId;
+    if (result.success) return withUpstreamModel(result.response, clientFacingModelId);
 
     // Antigravity 409/429: refresh live quota to get exact resetAt before locking
     let quotaResetMs = null;
@@ -341,6 +341,6 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       continue;
     }
 
-    return withUpstreamModel(result.response, `${provider}/${model}`);
+    return withUpstreamModel(result.response, clientFacingModelId);
   }
 }
