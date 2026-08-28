@@ -243,6 +243,17 @@ describe("combo upstream identity header", () => {
     expect(withUpstreamModel(response, "x/y")).toBe(response);
   });
 
+  it("#given an absent upstream id #when stamping is attempted #then it returns the original unstamped response", () => {
+    for (const modelId of [undefined, null, ""]) {
+      const response = new Response("ok", { status: 201 });
+      const result = withUpstreamModel(response, modelId);
+
+      expect(result).toBe(response);
+      expect(result.status).toBe(201);
+      expect(result.headers.get(UPSTREAM_MODEL_HEADER)).toBeNull();
+    }
+  });
+
   it("#given a 204 response #when stamping is attempted #then the original is returned rather than throwing", () => {
     const response = new Response(null, { status: 204 });
 
@@ -384,5 +395,39 @@ describe("client-facing upstream identity", () => {
     expect(result).toMatchObject({ provider: "openai-compatible-chat-abc123", model: "gpt-4o" });
     expect(result.clientModelId).toBe("myco/gpt-4o");
     expect(result.clientModelId).not.toMatch(/^openai-compatible-/);
+  });
+
+  it("#given an Anthropic-compatible provider node #when model info resolves #then display id keeps user prefix", async () => {
+    const ctx = await setupModelInfo();
+    cleanup = ctx.cleanup;
+    await ctx.createProviderNode({
+      id: "anthropic-compatible-xyz123",
+      type: "anthropic-compatible",
+      name: "MyAnthropic",
+      prefix: "myant",
+      baseUrl: "https://anthropic-compatible.test",
+    });
+
+    const result = await ctx.getModelInfo("myant/claude-x");
+    expect(result).toMatchObject({ provider: "anthropic-compatible-xyz123", model: "claude-x" });
+    expect(result.clientModelId).toBe("myant/claude-x");
+    expect(result.clientModelId).not.toMatch(/^anthropic-compatible-/);
+  });
+
+  it("#given a custom embedding provider node #when model info resolves #then display id keeps user prefix", async () => {
+    const ctx = await setupModelInfo();
+    cleanup = ctx.cleanup;
+    await ctx.createProviderNode({
+      id: "custom-embedding-xyz123",
+      type: "custom-embedding",
+      name: "MyEmbeddings",
+      prefix: "myemb",
+      baseUrl: "https://embedding-compatible.test",
+    });
+
+    const result = await ctx.getModelInfo("myemb/bge-m3");
+    expect(result).toMatchObject({ provider: "custom-embedding-xyz123", model: "bge-m3" });
+    expect(result.clientModelId).toBe("myemb/bge-m3");
+    expect(result.clientModelId).not.toMatch(/^custom-embedding-/);
   });
 });
