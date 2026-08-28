@@ -318,6 +318,42 @@ export function getComboModelsFromData(modelStr, combosData) {
 }
 
 /**
+ * Response header naming the combo member that actually served the request.
+ *
+ * A combo advertises one name but can be served by any of its members: when the
+ * first member is rate-limited or out of budget, the loop below falls through to
+ * the next one. A client that shapes its request per model family (prompt style,
+ * reasoning effort, tool schema) therefore cannot infer the family from the combo
+ * name, and guessing the first member is wrong in exactly the case the fallback
+ * exists for. This header reports what actually answered.
+ */
+export const UPSTREAM_MODEL_HEADER = "X-9Router-Upstream-Model";
+
+/**
+ * Re-emit a response carrying the winning member's identity.
+ *
+ * Headers on a constructed Response are immutable, so the response is rebuilt.
+ * `response.body` is passed through untouched - never buffered via text()/json() -
+ * so streaming is unaffected and no chunk is delayed.
+ */
+function withUpstreamModel(response, modelStr) {
+  if (!response || typeof response !== "object" || !("headers" in response)) return response;
+  if (!modelStr) return response;
+  try {
+    const headers = new Headers(response.headers);
+    headers.set(UPSTREAM_MODEL_HEADER, modelStr);
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers,
+    });
+  } catch {
+    // Identity is advisory; never fail a working response over a label.
+    return response;
+  }
+}
+
+/**
  * Handle combo chat with fallback
  * @param {Object} options
  * @param {Object} options.body - Request body
@@ -359,7 +395,7 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
       // Success (2xx) - return response
       if (result.ok) {
         log.info("COMBO", `Model ${modelStr} succeeded`);
-        return result;
+        return withUpstreamModel(result, modelStr);
       }
 
       // Extract error info from response
@@ -379,7 +415,7 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
         result = await handleSingleModel(cloneRequestBody(body), modelStr);
         if (result.ok) {
           log.info("COMBO", `Model ${modelStr} succeeded on retry ${attempt}`);
-          return result;
+          return withUpstreamModel(result, modelStr);
         }
         errorText = result.statusText || "";
         try {
@@ -405,7 +441,7 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
 
       if (!shouldFallback) {
         log.warn("COMBO", `Model ${modelStr} failed (no fallback)`, { status: result.status });
-        return result;
+        return withUpstreamModel(result, modelStr);
       }
 
       // For transient errors (503/502/504), wait for cooldown before falling through
