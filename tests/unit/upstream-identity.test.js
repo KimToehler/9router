@@ -257,6 +257,10 @@ describe("client-facing upstream identity", () => {
   afterEach(() => {
     cleanup();
     cleanup = () => {};
+    vi.doUnmock("@/sse/services/auth.js");
+    vi.doUnmock("@/lib/localDb");
+    vi.doUnmock("@/sse/services/model.js");
+    vi.doUnmock("open-sse/handlers/chatCore.js");
     vi.resetModules();
     if (originalDataDir === undefined) delete process.env.DATA_DIR;
     else process.env.DATA_DIR = originalDataDir;
@@ -303,6 +307,41 @@ describe("client-facing upstream identity", () => {
     expect(resolveClientFacingModelId({ providerSpecificData: { prefix: "myco" } }, "deepseek-v4-pro", clientModelId)).toBe("myco/deepseek-v4-pro");
     expect(resolveClientFacingModelId({ providerSpecificData: { prefix: "   " } }, "deepseek-v4-pro", clientModelId)).toBe(clientModelId);
     expect(resolveClientFacingModelId({}, "deepseek-v4-pro", undefined)).toBe("deepseek-v4-pro");
+  });
+
+  it("#given a successful real chat account loop #when a connection has a prefix #then stamped header keeps prefix", async () => {
+    vi.resetModules();
+    vi.doMock("@/sse/services/auth.js", () => ({
+      getProviderCredentials: vi.fn(async () => ({ connectionId: "conn-1", connectionName: "MyCo", providerSpecificData: { prefix: "myco" } })),
+      checkAndRefreshToken: vi.fn(async (_provider, credentials) => credentials),
+      markAccountUnavailable: vi.fn(),
+      clearAccountError: vi.fn(),
+      extractApiKey: vi.fn(),
+      isValidApiKey: vi.fn(),
+    }));
+    vi.doMock("@/lib/localDb", () => ({
+      getSettings: vi.fn(async () => ({})),
+      getModelAliases: vi.fn(),
+      getComboByName: vi.fn(),
+      getProviderNodes: vi.fn(),
+    }));
+    vi.doMock("@/sse/services/model.js", () => ({
+      getModelInfo: vi.fn(async () => ({ provider: "deepseek", model: "deepseek-v4-pro", clientModelId: "ds/deepseek-v4-pro" })),
+      getComboModels: vi.fn(async () => null),
+    }));
+    vi.doMock("open-sse/handlers/chatCore.js", () => ({
+      handleChatCore: vi.fn(async () => ({ success: true, response: new Response("ok") })),
+    }));
+
+    const { handleSingleModelChat } = await import("@/sse/handlers/chat.js");
+    const response = await handleSingleModelChat(
+      { model: "ds/deepseek-v4-pro", messages: [] },
+      "ds/deepseek-v4-pro",
+      null,
+      new Request("http://localhost/v1/chat/completions"),
+    );
+
+    expect(response.headers.get(UPSTREAM_MODEL_HEADER)).toBe("myco/deepseek-v4-pro");
   });
 
   it("#given a provider node prefix #when model info resolves #then display id keeps user prefix", async () => {

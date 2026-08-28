@@ -29,7 +29,7 @@ import { withUpstreamModel } from "open-sse/services/combo.js";
 /**
  * Select model id shown to client after request succeeds.
  */
-export function resolveClientFacingModelId(credentials, model, clientModelId, _provider) {
+export function resolveClientFacingModelId(credentials, model, clientModelId) {
   const prefix = credentials.providerSpecificData?.prefix?.trim();
   return prefix ? `${prefix}/${model}` : (clientModelId || model);
 }
@@ -172,7 +172,7 @@ export async function handleChat(request, clientRawRequest = null) {
 /**
  * Handle single model chat request
  */
-async function handleSingleModelChat(body, modelStr, clientRawRequest = null, request = null, apiKey = null) {
+export async function handleSingleModelChat(body, modelStr, clientRawRequest = null, request = null, apiKey = null) {
   const modelInfo = await getModelInfo(modelStr);
 
   // If provider is null, this might be a combo name - check and handle
