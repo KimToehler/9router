@@ -10,6 +10,7 @@ import { buildRequestDetail, extractRequestConfig, extractUsageFromResponse, sav
 import { appendRequestLog, saveRequestDetail } from "@/lib/usageDb.js";
 import { decloakToolNames } from "../../utils/claudeCloaking.js";
 import { ROLE, RESPONSES_ITEM } from "../../translator/schema/index.js";
+import { JSON_HEADERS_CORS } from "../../utils/sseConstants.js";
 
 function parseToolArguments(value) {
   if (!value) return {};
@@ -392,7 +393,7 @@ export async function handleNonStreamingResponse({ providerResponse, provider, m
   return {
     success: true,
     response: new Response(JSON.stringify(translatedResponse), {
-      headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+      headers: JSON_HEADERS_CORS
     })
   };
 }

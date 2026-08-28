@@ -1,3 +1,5 @@
+import { EXPOSE_HEADERS_HEADER, UPSTREAM_MODEL_HEADER_NAME } from "./sseConstants.js";
+
 // Transform OpenAI SSE stream to Ollama JSON lines format
 export function transformToOllama(response, model) {
   let buffer = "";
@@ -75,11 +77,17 @@ export function transformToOllama(response, model) {
     }
   });
 
+  const headers = {
+    "Content-Type": "application/x-ndjson",
+    "Access-Control-Allow-Origin": "*",
+    [EXPOSE_HEADERS_HEADER]: UPSTREAM_MODEL_HEADER_NAME
+  };
+  const upstreamModel = response.headers.get(UPSTREAM_MODEL_HEADER_NAME);
+  if (upstreamModel) headers[UPSTREAM_MODEL_HEADER_NAME] = upstreamModel;
+
   if (!response.body) {
-    return new Response("", { status: response.status, headers: { "Content-Type": "application/x-ndjson" } });
+    return new Response("", { status: response.status, headers });
   }
-  return new Response(response.body.pipeThrough(transform), {
-    headers: { "Content-Type": "application/x-ndjson", "Access-Control-Allow-Origin": "*" }
-  });
+  return new Response(response.body.pipeThrough(transform), { headers });
 }
 
