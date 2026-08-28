@@ -4,7 +4,9 @@ import {
   handleComboChat,
   resetComboRotation,
   UPSTREAM_MODEL_HEADER,
+  withUpstreamModel,
 } from "../../open-sse/services/combo.js";
+import { EMPTY_STREAM_MESSAGE } from "../../open-sse/utils/emptyStreamPeek.js";
 
 const log = { info: () => {}, warn: () => {}, error: () => {} };
 
@@ -127,5 +129,103 @@ describe("combo upstream identity header", () => {
 
     expect(result.ok).toBe(true);
     expect(result.headers.get(UPSTREAM_MODEL_HEADER)).toBe("glm/glm-5.2");
+  });
+
+  it("#given the inner leaf already stamped #when an outer combo wraps it #then the inner value survives", async () => {
+    const result = await handleComboChat({
+      body: { model: "outer", messages: [] },
+      models: ["outer-member"],
+      handleSingleModel: async () => new Response("ok", { headers: { [UPSTREAM_MODEL_HEADER]: "kiro/glm-5" } }),
+      log,
+      comboName: "outer",
+      comboStrategy: "fallback",
+    });
+
+    expect(result.headers.get(UPSTREAM_MODEL_HEADER)).toBe("kiro/glm-5");
+    expect(result.headers.get(UPSTREAM_MODEL_HEADER)).not.toBe("outer-member");
+  });
+
+  it("#given a nested combo member #when it serves #then the header names the leaf, never the nested combo name", async () => {
+    const result = await handleComboChat({
+      body: { model: "outer", messages: [] },
+      models: ["fast-tier"],
+      handleSingleModel: async () => new Response("ok", { headers: { [UPSTREAM_MODEL_HEADER]: "kr/glm-5" } }),
+      log,
+      comboName: "outer",
+      comboStrategy: "fallback",
+    });
+
+    expect(result.headers.get(UPSTREAM_MODEL_HEADER)).toBe("kr/glm-5");
+    expect(result.headers.get(UPSTREAM_MODEL_HEADER)).not.toBe("fast-tier");
+  });
+
+  it("#given an unstamped inner response #when the combo wraps it #then the member is stamped", async () => {
+    const result = await handleComboChat({
+      body: { model: "oracle", messages: [] },
+      models: ["anthropic/claude-opus-5"],
+      handleSingleModel: async () => jsonResponse({ ok: true }),
+      log,
+      comboName: "oracle",
+      comboStrategy: "fallback",
+    });
+
+    expect(result.headers.get(UPSTREAM_MODEL_HEADER)).toBe("anthropic/claude-opus-5");
+  });
+
+  it("#given a failed first candidate that stamped itself #when a later candidate succeeds #then only the winner is named", async () => {
+    const result = await handleComboChat({
+      body: { model: "oracle", messages: [] },
+      models: ["anthropic/claude-opus-5", "openai/gpt-5.6-sol"],
+      handleSingleModel: async (_body, modelStr) => modelStr === "anthropic/claude-opus-5"
+        ? new Response("rate limited", { status: 429, headers: { [UPSTREAM_MODEL_HEADER]: modelStr } })
+        : jsonResponse({ ok: true }),
+      log,
+      comboName: "oracle",
+      comboStrategy: "fallback",
+    });
+
+    expect(result.headers.get(UPSTREAM_MODEL_HEADER)).toBe("openai/gpt-5.6-sol");
+  });
+
+  it("#given an empty-stream retry that succeeds #when it responds #then the retried model is named exactly once", async () => {
+    let calls = 0;
+    const modelStr = "openai/gpt-5.6-sol";
+    const result = await handleComboChat({
+      body: { model: "oracle", messages: [] },
+      models: [modelStr],
+      handleSingleModel: async () => {
+        calls += 1;
+        return calls === 1
+          ? jsonResponse({ error: { message: EMPTY_STREAM_MESSAGE } }, 503)
+          : jsonResponse({ ok: true });
+      },
+      log,
+      comboName: "oracle",
+      comboStrategy: "fallback",
+    });
+
+    expect(result.headers.get(UPSTREAM_MODEL_HEADER)).toBe(modelStr);
+    expect([...result.headers].filter(([key]) => key.toLowerCase() === UPSTREAM_MODEL_HEADER.toLowerCase()).length).toBe(1);
+  });
+
+  it("#given a streaming response #when N wrappers run #then the body is delivered intact and unlocked", async () => {
+    const result = withUpstreamModel(withUpstreamModel(sseResponse({ choices: [{ delta: { content: "hi" } }] }), "leaf/model"), "outer-combo");
+
+    expect(result.body.locked).toBe(false);
+    expect(result.headers.get("content-type")).toBe("text/event-stream");
+    expect(await result.text()).toContain("[DONE]");
+  });
+
+  it("#given a response already stamped #when withUpstreamModel runs #then the same object is returned", () => {
+    const response = new Response("ok", { headers: { [UPSTREAM_MODEL_HEADER]: "kiro/glm-5" } });
+
+    expect(withUpstreamModel(response, "x/y")).toBe(response);
+  });
+
+  it("#given a 204 response #when stamping is attempted #then the original is returned rather than throwing", () => {
+    const response = new Response(null, { status: 204 });
+
+    expect(() => withUpstreamModel(response, "x/y")).not.toThrow();
+    expect(withUpstreamModel(response, "x/y").status).toBe(204);
   });
 });

@@ -330,9 +330,10 @@ export function getComboModelsFromData(modelStr, combosData) {
 export const UPSTREAM_MODEL_HEADER = "X-9Router-Upstream-Model";
 
 /**
- * Re-emit a response carrying the winning member's identity.
+ * Re-emit a response carrying the resolved leaf identity.
  *
- * Headers on a constructed Response are immutable, so the response is rebuilt.
+ * First writer wins: nested combo wrappers preserve an already-stamped leaf.
+ * Headers on an unstamped constructed Response are immutable, so it is rebuilt.
  * `response.body` is passed through untouched - never buffered via text()/json() -
  * so streaming is unaffected and no chunk is delayed.
  */
@@ -340,6 +341,7 @@ export function withUpstreamModel(response, modelStr) {
   if (!response || typeof response !== "object" || !("headers" in response)) return response;
   if (!modelStr) return response;
   try {
+    if (response.headers.get(UPSTREAM_MODEL_HEADER)) return response;
     const headers = new Headers(response.headers);
     headers.set(UPSTREAM_MODEL_HEADER, modelStr);
     return new Response(response.body, {
