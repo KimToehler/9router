@@ -241,6 +241,37 @@ function comboMatchesKinds(combo, kindFilter) {
  * Build OpenAI-format models list filtered by service kinds.
  * @param {string[]} kindFilter - List of service kinds to include (e.g. ["llm"], ["webSearch","webFetch"]).
  */
+/**
+ * Build the /v1/models entry for one combo.
+ *
+ * A combo is advertised under a single opaque name, but any of its members can
+ * serve a request: the fallback loop walks the list when a member is rate-limited
+ * or out of budget. A client that shapes requests per model family - prompt style,
+ * reasoning effort, tool schema - cannot infer the family from the combo name, and
+ * assuming the first member is wrong in exactly the case the fallback exists for.
+ *
+ * `upstream_models` therefore lists the candidates in preference order, so a client
+ * can see the possible families up front, and `upstream_model` is deliberately NOT
+ * set: at catalog time nothing has served anything, so naming one would be a guess.
+ * The authoritative answer is the X-9Router-Upstream-Model response header, which
+ * reports the member that actually answered.
+ */
+export function buildComboEntry(combo) {
+  const entry = {
+    id: combo.name,
+    object: "model",
+    owned_by: "combo",
+  };
+  if (combo.kind === "webSearch" || combo.kind === "webFetch") {
+    entry.kind = combo.kind;
+  }
+  const members = Array.isArray(combo.models)
+    ? combo.models.filter((m) => typeof m === "string" && m.trim() !== "")
+    : [];
+  if (members.length > 0) entry.upstream_models = members;
+  return entry;
+}
+
 export async function buildModelsList(kindFilter, options = {}) {
   // When this header is present, the /v1/models request came from another
   // 9router instance's fetchCompatibleModelIds — skip dynamic fetch to break
@@ -295,15 +326,7 @@ export async function buildModelsList(kindFilter, options = {}) {
   // Combos first (filtered by kind). Web combos expose `kind` so AI knows search vs fetch.
   for (const combo of combos) {
     if (!comboMatchesKinds(combo, kindFilter)) continue;
-    const entry = {
-      id: combo.name,
-      object: "model",
-      owned_by: "combo",
-    };
-    if (combo.kind === "webSearch" || combo.kind === "webFetch") {
-      entry.kind = combo.kind;
-    }
-    models.push(entry);
+    models.push(buildComboEntry(combo));
   }
 
   if (connections.length === 0) {
