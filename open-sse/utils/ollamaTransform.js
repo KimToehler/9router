@@ -86,7 +86,8 @@ export function transformToOllama(response, model) {
   if (upstreamModel) headers[UPSTREAM_MODEL_HEADER_NAME] = upstreamModel;
 
   if (!response.body) {
-    return new Response("", { status: response.status, headers });
+    const body = [204, 205, 304].includes(response.status) ? null : "";
+    return new Response(body, { status: response.status, headers });
   }
   return new Response(response.body.pipeThrough(transform), { headers });
 }

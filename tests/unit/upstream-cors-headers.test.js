@@ -1,15 +1,45 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("../../src/lib/usageDb.js", () => ({
+  appendRequestLog: vi.fn(),
+  saveRequestDetail: vi.fn(() => Promise.resolve()),
+}));
+
 import { UPSTREAM_MODEL_HEADER } from "../../open-sse/services/combo.js";
-import {
-  EXPOSE_HEADERS_HEADER,
-  JSON_HEADERS_CORS,
-  SSE_HEADERS_CORS,
-  UPSTREAM_MODEL_HEADER_NAME
-} from "../../open-sse/utils/sseConstants.js";
+import { EXPOSE_HEADERS_HEADER, UPSTREAM_MODEL_HEADER_NAME } from "../../open-sse/utils/sseConstants.js";
+import { handleNonStreamingResponse } from "../../open-sse/handlers/chatCore/nonStreamingHandler.js";
+import { handleForcedSSEToJson } from "../../open-sse/handlers/chatCore/sseToJsonHandler.js";
+import { handleStreamingResponse } from "../../open-sse/handlers/chatCore/streamingHandler.js";
 import { transformToOllama } from "../../open-sse/utils/ollamaTransform.js";
 
 const exposeHeader = EXPOSE_HEADERS_HEADER;
 const upstreamModelHeader = UPSTREAM_MODEL_HEADER_NAME;
+
+function handlerOptions(overrides = {}) {
+  return {
+    provider: "openai",
+    model: "gpt-4o-mini",
+    sourceFormat: "openai",
+    targetFormat: "openai",
+    body: { model: "gpt-4o-mini", messages: [] },
+    stream: false,
+    requestStartTime: Date.now(),
+    connectionId: "test",
+    apiKey: "test-key",
+    clientRawRequest: {},
+    trackDone: vi.fn(),
+    appendLog: vi.fn(),
+    reqLogger: { logProviderResponse: vi.fn(), logConvertedResponse: vi.fn() },
+    streamController: { handleError: vi.fn() },
+    ...overrides,
+  };
+}
+
+function expectCorsHeaders(response, contentType) {
+  expect(response.headers.get("Content-Type")).toBe(contentType);
+  expect(response.headers.get("Access-Control-Allow-Origin")).toBe("*");
+  expect(response.headers.get(exposeHeader)).toBe(upstreamModelHeader);
+}
 
 function sseResponse(headers = {}) {
   const encoder = new TextEncoder();
@@ -34,19 +64,32 @@ describe("upstream model CORS headers", () => {
     expect(UPSTREAM_MODEL_HEADER_NAME).toBe(UPSTREAM_MODEL_HEADER);
   });
 
-  it("exposes upstream identity on client-facing SSE headers without changing existing headers", () => {
-    expect(SSE_HEADERS_CORS["Content-Type"]).toBe("text/event-stream");
-    expect(SSE_HEADERS_CORS["Cache-Control"]).toBe("no-cache");
-    expect(SSE_HEADERS_CORS.Connection).toBe("keep-alive");
-    expect(SSE_HEADERS_CORS["Access-Control-Allow-Origin"]).toBe("*");
-    expect(SSE_HEADERS_CORS[exposeHeader]).toBe(upstreamModelHeader);
+  it("returns exposed CORS headers from non-streaming handler", async () => {
+    const result = await handleNonStreamingResponse(handlerOptions({
+      providerResponse: new Response(JSON.stringify({ choices: [], usage: {} }), {
+        headers: { "content-type": "application/json" },
+      }),
+    }));
+
+    expectCorsHeaders(result.response, "application/json");
   });
 
-  it("shares explicit exposed CORS headers for JSON responses", () => {
-    expect(JSON_HEADERS_CORS["Content-Type"]).toBe("application/json");
-    expect(JSON_HEADERS_CORS["Access-Control-Allow-Origin"]).toBe("*");
-    expect(JSON_HEADERS_CORS[exposeHeader]).toBe(upstreamModelHeader);
-    expect(JSON_HEADERS_CORS[exposeHeader]).not.toBe("*");
+  it("returns exposed CORS headers from forced SSE-to-JSON handler", async () => {
+    const result = await handleForcedSSEToJson(handlerOptions({
+      providerResponse: sseResponse(),
+    }));
+
+    expectCorsHeaders(result.response, "application/json");
+  });
+
+  it("returns exposed CORS headers from streaming handler", async () => {
+    const result = await handleStreamingResponse(handlerOptions({
+      providerResponse: sseResponse(),
+      stream: true,
+      streamDetailId: "test-stream-detail",
+    }));
+
+    expectCorsHeaders(result.response, "text/event-stream");
   });
 
   it("preserves upstream identity while converting streaming SSE to Ollama", async () => {
@@ -59,28 +102,32 @@ describe("upstream model CORS headers", () => {
     expect(await output.text()).not.toBe("");
   });
 
-  it("preserves upstream identity on a no-body Ollama response", () => {
+  it.each([204, 304])("preserves headers for no-body Ollama status %i", (status) => {
     const output = transformToOllama(new Response(null, {
-      status: 200,
+      status,
       headers: {
         [UPSTREAM_MODEL_HEADER]: "kiro/glm-5",
         "content-type": "text/event-stream"
       }
     }), "llama3.2");
 
+    expect(output.status).toBe(status);
     expect(output.headers.get(UPSTREAM_MODEL_HEADER)).toBe("kiro/glm-5");
     expect(output.headers.get("content-type")).toBe("application/x-ndjson");
     expect(output.headers.get(exposeHeader)).toBe(upstreamModelHeader);
     expect(output.headers.get("Access-Control-Allow-Origin")).toBe("*");
   });
 
-  it("does not invent upstream identity when Ollama source response lacks it", () => {
+  it.each([204, 205, 304])("does not invent upstream identity for no-body Ollama status %i", (status) => {
     const output = transformToOllama(new Response(null, {
-      status: 200,
+      status,
       headers: { "content-type": "text/event-stream" }
     }), "llama3.2");
 
+    expect(output.status).toBe(status);
     expect(output.headers.get(UPSTREAM_MODEL_HEADER)).toBeNull();
     expect(output.headers.get(exposeHeader)).toBe(upstreamModelHeader);
+    expect(output.headers.get("content-type")).toBe("application/x-ndjson");
+    expect(output.headers.get("Access-Control-Allow-Origin")).toBe("*");
   });
 });
