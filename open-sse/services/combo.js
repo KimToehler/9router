@@ -336,7 +336,7 @@ export const UPSTREAM_MODEL_HEADER = "X-9Router-Upstream-Model";
  * `response.body` is passed through untouched - never buffered via text()/json() -
  * so streaming is unaffected and no chunk is delayed.
  */
-function withUpstreamModel(response, modelStr) {
+export function withUpstreamModel(response, modelStr) {
   if (!response || typeof response !== "object" || !("headers" in response)) return response;
   if (!modelStr) return response;
   try {

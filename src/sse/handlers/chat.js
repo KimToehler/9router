@@ -24,6 +24,7 @@ import * as log from "../utils/logger.js";
 import { updateProviderCredentials, checkAndRefreshToken } from "../services/tokenRefresh.js";
 import { getProjectIdForConnection } from "open-sse/services/projectId.js";
 import { stripModelContextMarker } from "open-sse/utils/modelMarkers.js";
+import { withUpstreamModel } from "open-sse/services/combo.js";
 
 /**
  * Handle chat completion request
@@ -307,7 +308,13 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       }
     });
 
-    if (result.success) return result.response;
+    // Name the provider/model that actually served this request. For a direct
+    // request modelStr is already concrete, but for an alias (or a combo member)
+    // it is opaque to the client, which cannot otherwise tell which vendor
+    // answered - and vendor decides prompt style, reasoning effort, and tool
+    // schema. handleComboChat re-stamps this with the winning member, so the
+    // combo case reports the member rather than the combo name.
+    if (result.success) return withUpstreamModel(result.response, `${provider}/${model}`);
 
     // Antigravity 409/429: refresh live quota to get exact resetAt before locking
     let quotaResetMs = null;
@@ -334,6 +341,6 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       continue;
     }
 
-    return result.response;
+    return withUpstreamModel(result.response, `${provider}/${model}`);
   }
 }
