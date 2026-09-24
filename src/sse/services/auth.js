@@ -262,9 +262,12 @@ export async function markAccountUnavailable(connectionId, status, errorText, pr
     ({ shouldFallback, cooldownMs, newBackoffLevel, accountFault } = checkFallbackError(status, errorText, backoffLevel));
   }
 
-  // Payload-fault errors (400 bad schema/param) are deterministic: the same body
-  // fails on every account. Locking here would take healthy accounts offline and
-  // burn the whole fallback chain on one malformed request. Surface it instead.
+  // Payload-fault errors are deterministic per credential: the same body fails on
+  // every account of this provider, so locking would take healthy accounts offline
+  // for a fault they do not have. Returning shouldFallback:false here stops only
+  // the CREDENTIAL loop - handleComboChat() reads checkFallbackError() directly and
+  // still advances to the next combo member, which may be a provider that accepts
+  // the body (see accountFault in errorConfig.js).
   if (accountFault === false) {
     const reason = typeof errorText === "string" ? errorText.slice(0, 100) : "Request rejected";
     log.warn("AUTH", `${connectionId.slice(0, 8)} NOT locked [${status}] — request-shape error, not an account fault: ${reason}`);
@@ -273,7 +276,7 @@ export async function markAccountUnavailable(connectionId, status, errorText, pr
 
   if (!shouldFallback) return { shouldFallback: false, cooldownMs: 0 };
 
-  const reason = typeof errorText === "string" ? errorText.slice(0, 100) : "Provider error";
+  const reason = typeof errorText === "string" ? errorText.slice(0, 200) : "Provider error";
   const lockUpdate = buildModelLockUpdate(githubResetAtMs ? null : model, cooldownMs);
 
   await updateProviderConnection(connectionId, {

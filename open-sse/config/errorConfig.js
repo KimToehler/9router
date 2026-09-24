@@ -56,14 +56,18 @@ const COOLDOWN = {
  *   - cooldownMs: fixed cooldown duration
  *   - backoff: true = use exponential backoff (rate limit)
  *   - accountFault: false = the request payload is at fault, not the account.
- *     Retrying the same payload on another account produces the same error, so
- *     the account must not be locked and the account loop must not advance.
+ *     Retrying the same payload on another *account* produces the same error, so
+ *     the account must not be locked and the credential loop must not advance.
+ *     The combo loop still falls through: a different provider/model family may
+ *     accept a body this one rejects. Reserve it for failures with positive
+ *     evidence of provider-specific incompatibility - a generic 400 has none and
+ *     must instead stop both loops via the unmatched-4xx rule in
+ *     checkFallbackError(), so the real error reaches the caller immediately.
  */
 export const ERROR_RULES = [
   // --- Text-based rules (checked first, order = priority) ---
   { text: "no credentials",           cooldownMs: COOLDOWN.long },
   { text: "request not allowed",      cooldownMs: COOLDOWN.short },
-  { text: "improperly formed request", cooldownMs: COOLDOWN.long },
   { text: "rate limit",               backoff: true },
   { text: "too many requests",        backoff: true },
   { text: "quota exceeded",           backoff: true },
@@ -72,12 +76,17 @@ export const ERROR_RULES = [
   // An empty 200 stream repeats for the same body while neighbouring requests on
   // the same account succeed, so it is a payload fault, not an account fault.
   { text: "empty stream",             cooldownMs: 0, accountFault: false },
+  // Anthropic alone rejects anyOf/oneOf/allOf at the ROOT of a tool input_schema;
+  // OpenAI-shaped providers accept the same body. That makes it the one 400 with
+  // positive evidence that the NEXT combo member can succeed, so it falls through
+  // instead of stopping the chain. Generic 400s deliberately do not get this.
+  { text: "input_schema does not support", cooldownMs: 0, accountFault: false },
 
   // --- Status-based rules (fallback when text doesn't match) ---
-  // 400 is a deterministic request-shape rejection (bad schema, bad param).
-  // Text rules above still win, so a 400 body that says "rate limit" or
-  // "overloaded" is treated as a quota error and does lock the account.
-  { status: 400, cooldownMs: 0, accountFault: false },
+  // NOTE: there is deliberately no blanket `{ status: 400 }` rule. An unmatched
+  // request-scoped 4xx is handled after this loop in checkFallbackError(), which
+  // stops fallback entirely rather than burning every combo member on a body that
+  // will be rejected identically (context overflow, malformed params).
   { status: 401, cooldownMs: COOLDOWN.long },
   { status: 402, cooldownMs: COOLDOWN.long },
   { status: 403, cooldownMs: COOLDOWN.long },

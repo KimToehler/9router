@@ -187,16 +187,27 @@ describe("prepareClaudeRequest tool schemas", () => {
 });
 
 describe("checkFallbackError payload-fault classification", () => {
-  it("marks a 400 as not-an-account-fault so the account is not locked", () => {
+  it("marks the root-combinator 400 as not-an-account-fault so the account is not locked", () => {
     const result = checkFallbackError(400, "input_schema does not support oneOf, allOf, or anyOf at the top level");
 
     expect(result.accountFault).toBe(false);
     expect(result.cooldownMs).toBe(0);
   });
 
-  it("still allows the model loop to try the next combo rung", () => {
-    // A different provider may accept a body Anthropic rejects.
-    expect(checkFallbackError(400, "bad schema").shouldFallback).toBe(true);
+  it("lets the model loop try the next combo rung for the root-combinator 400", () => {
+    // Anthropic alone rejects root anyOf/oneOf/allOf; OpenAI-shaped providers take
+    // the same body, so this is the one 400 with evidence the next rung can serve.
+    expect(checkFallbackError(400, "input_schema does not support oneOf, allOf, or anyOf at the top level")).toEqual({
+      shouldFallback: true,
+      cooldownMs: 0,
+      accountFault: false,
+    });
+  });
+
+  it("stops the chain for a generic 400 instead of burning every combo rung", () => {
+    // No evidence another provider would accept it: a malformed body or a context
+    // overflow fails identically everywhere, so surface the real error at once.
+    expect(checkFallbackError(400, "bad schema")).toEqual({ shouldFallback: false, cooldownMs: 0 });
   });
 
   it("keeps treating a 400 whose body says rate limit as a quota error", () => {
