@@ -92,6 +92,20 @@ describe("applyThinking per provider format", () => {
     expect(out.output_config).toEqual({ effort: "high" });
     expect(out.thinking).toBeUndefined();
   });
+  it.each([
+    ["claude-opus-5-5", "xhigh", "xhigh"],
+    ["claude-opus-5", "xhigh", "xhigh"],
+    ["claude-opus-4.7", "xhigh", "xhigh"],
+    ["claude-sonnet-5", "xhigh", "xhigh"],
+    ["claude-fable-5-1", "xhigh", "xhigh"],
+    ["claude-opus-4.6", "xhigh", "high"],
+    ["claude-sonnet-4-6", "xhigh", "high"],
+    ["claude-opus-5-5", "max", "max"],
+    ["claude-opus-4.6", "max", "max"],
+  ])("claude adaptive %s: effort %s → %s (xhigh exists from Opus 4.7 on)", (model, effort, expected) => {
+    const out = apply("claude", model, { output_config: { effort } }, "claude");
+    expect(out.output_config).toEqual({ effort: expected });
+  });
   it("Fable 5.1 → effort without a redundant thinking switch", () => {
     const out = apply("claude", "claude-fable-5-1", { reasoning_effort: "high" }, "claude");
     expect(out.output_config).toEqual({ effort: "high" });

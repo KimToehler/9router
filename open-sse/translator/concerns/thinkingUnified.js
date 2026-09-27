@@ -252,7 +252,9 @@ function applyFormat(fmt, body, cfg, caps, supportedLevels, display) {
       if (canDisable) body.thinking = { type: "adaptive", ...(display ? { display } : {}) };
       else delete body.thinking;
       const level = toLevel(eff);
-      body.output_config = { effort: level === "xhigh" || level === "auto" ? "high" : level };
+      // Anthropic has no "auto" effort, and only models from Opus 4.7 on accept xhigh.
+      const unsupported = level === "auto" || (level === "xhigh" && !supportedLevels?.includes("xhigh"));
+      body.output_config = { effort: unsupported ? "high" : level };
       break;
     }
     case "claude-budget": {

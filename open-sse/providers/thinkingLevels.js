@@ -9,8 +9,8 @@ const L = {
   base: ["none", "low", "medium", "high"],                          // qwen, step, hunyuan, gemini-budget
   onOff: ["none", "thinking"],                                      // zai (binary), minimax (adaptive)
   openai: ["none", "minimal", "low", "medium", "high", "xhigh"],    // GPT-5.x / o-series (no "max")
-  levelMax: ["none", "low", "medium", "high", "max"],               // claude-adaptive, kimi
-  budgetX: ["none", "low", "medium", "high", "xhigh", "max"],       // claude-budget
+  levelMax: ["none", "low", "medium", "high", "max"],               // kimi, claude-adaptive before Opus 4.7
+  xhighMax: ["none", "low", "medium", "high", "xhigh", "max"],      // claude-adaptive (Opus 4.7+), claude-budget
   gemini: ["minimal", "low", "medium", "high"],                     // gemini-3 thinkingLevel (no disable)
   hiMax: ["none", "high", "max"],                                   // deepseek (low/med→high, xhigh→max)
 };
@@ -18,8 +18,8 @@ const L = {
 // thinkingFormat → valid selectable levels (source of truth for UI options).
 const FORMAT_LEVELS = {
   openai: L.openai,
-  "claude-adaptive": L.levelMax,
-  "claude-budget": L.budgetX,
+  "claude-adaptive": L.xhighMax,
+  "claude-budget": L.xhighMax,
   "gemini-level": L.gemini,
   "gemini-budget": L.base,
   zai: L.onOff,
@@ -41,6 +41,12 @@ const PATTERN_THINKING = [
   { provider: "codex", pattern: "*gpt-5.6-terra*", levels: [...CODEX_GPT_5_6_LEVELS, "ultra"] },
   { provider: "codex", pattern: "*gpt-5.6-luna*", levels: CODEX_GPT_5_6_LEVELS },
   { pattern: "*codex*", levels: ["low", "medium", "high", "xhigh"] }, // codex cannot disable thinking
+  // Anthropic introduced the xhigh effort tier with Opus 4.7; the older adaptive
+  // models (Opus/Sonnet 4.6) accept low|medium|high|max only.
+  { format: "claude-adaptive", pattern: "*claude*opus-4.6*", levels: L.levelMax },
+  { format: "claude-adaptive", pattern: "*claude*opus-4-6*", levels: L.levelMax },
+  { format: "claude-adaptive", pattern: "*claude*sonnet-4.6*", levels: L.levelMax },
+  { format: "claude-adaptive", pattern: "*claude*sonnet-4-6*", levels: L.levelMax },
   { pattern: "*mimo*v2.6*", levels: ["none", "low", "medium", "high", "xhigh"] },
   // DeepSeek v4.* (Alibaba MaaS, probed live): effort low|medium|high|xhigh|max
   // all 200 via output_config.effort; "none" is a 400 on the anthropic route
@@ -68,7 +74,9 @@ export function getThinkingLevels(provider, model) {
   const caps = getCapabilitiesForModel(provider, model);
   if (!caps.reasoning) return null;
   const hit = PATTERN_THINKING.find((entry) =>
-    (!entry.provider || entry.provider === provider) && matchPattern(entry.pattern, model)
+    (!entry.provider || entry.provider === provider) &&
+    (!entry.format || entry.format === caps.thinkingFormat) &&
+    matchPattern(entry.pattern, model)
   );
   let levels = hit?.levels || FORMAT_LEVELS[caps.thinkingFormat] || L.base;
   if (caps.thinkingCanDisable === false) levels = levels.filter((l) => l !== "none");
