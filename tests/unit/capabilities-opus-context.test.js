@@ -32,6 +32,12 @@ describe("Claude Opus 1M context capabilities", () => {
     });
   }
 
+  for (const model of ["claude-sonnet-5-5", "claude-sonnet-5-5-thinking"]) {
+    it(`resolves ${model} to a 1M context window`, () => {
+      expect(getCapabilitiesForModel("cc", model)).toMatchObject(expected);
+    });
+  }
+
   it("keeps the older Opus 4.5 at the standard 200k context", () => {
     expect(getCapabilitiesForModel("cc", "claude-opus-4-5-20251101").contextWindow).toBe(200000);
   });

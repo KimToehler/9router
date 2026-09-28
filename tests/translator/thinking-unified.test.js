@@ -96,6 +96,7 @@ describe("applyThinking per provider format", () => {
     ["claude-opus-5-5", "xhigh", "xhigh"],
     ["claude-opus-5", "xhigh", "xhigh"],
     ["claude-opus-4.7", "xhigh", "xhigh"],
+    ["claude-sonnet-5-5", "xhigh", "xhigh"],
     ["claude-sonnet-5", "xhigh", "xhigh"],
     ["claude-fable-5-1", "xhigh", "xhigh"],
     ["claude-opus-4.6", "xhigh", "high"],
@@ -105,6 +106,12 @@ describe("applyThinking per provider format", () => {
   ])("claude adaptive %s: effort %s → %s (xhigh exists from Opus 4.7 on)", (model, effort, expected) => {
     const out = apply("claude", model, { output_config: { effort } }, "claude");
     expect(out.output_config).toEqual({ effort: expected });
+  });
+  // Anthropic rejects {type:"enabled"} without budget_tokens, which is what an
+  // unrecognised Sonnet 5.x got when it fell through to the claude-budget pattern.
+  it.each(["claude-sonnet-5-5", "claude-sonnet-5"])("%s keeps adaptive thinking instead of a budget-less enabled", (model) => {
+    const out = apply("claude", model, { thinking: { type: "adaptive" } }, "claude");
+    expect(out.thinking).toEqual({ type: "adaptive" });
   });
   it("Fable 5.1 → effort without a redundant thinking switch", () => {
     const out = apply("claude", "claude-fable-5-1", { reasoning_effort: "high" }, "claude");
