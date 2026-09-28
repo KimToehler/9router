@@ -28,10 +28,10 @@ export function buildErrorBody(statusCode, message) {
  * @param {string} message - Error message
  * @returns {Response} HTTP Response object
  */
-export function errorResponse(statusCode, message) {
+export function errorResponse(statusCode, message, extraHeaders = null) {
   return new Response(JSON.stringify(buildErrorBody(statusCode, message)), {
     status: statusCode,
-    headers: JSON_HEADERS_CORS
+    headers: { ...JSON_HEADERS_CORS, ...extraHeaders }
   });
 }
 
@@ -93,13 +93,13 @@ export async function parseUpstreamError(response, executor = null) {
  * @param {number} [resetsAtMs] - Optional precise cooldown expiry (ms epoch) for provider-specific quota errors
  * @returns {{ success: false, status: number, error: string, response: Response, resetsAtMs?: number }}
  */
-export function createErrorResult(statusCode, message, resetsAtMs) {
+export function createErrorResult(statusCode, message, resetsAtMs, extraHeaders = null) {
   return {
     success: false,
     status: statusCode,
     error: message,
     resetsAtMs,
-    response: errorResponse(statusCode, message)
+    response: errorResponse(statusCode, message, extraHeaders)
   };
 }
 
@@ -111,7 +111,7 @@ export function createErrorResult(statusCode, message, resetsAtMs) {
  * @param {string} retryAfterHuman - Human-readable retry info e.g. "reset after 30s"
  * @returns {Response}
  */
-export function unavailableResponse(statusCode, message, retryAfter, retryAfterHuman) {
+export function unavailableResponse(statusCode, message, retryAfter, retryAfterHuman, extraHeaders = null) {
   const retryAfterMs = new Date(retryAfter).getTime();
   const retryAfterSec = Number.isFinite(retryAfterMs)
     ? Math.max(Math.ceil((retryAfterMs - Date.now()) / 1000), 1)
@@ -122,8 +122,10 @@ export function unavailableResponse(statusCode, message, retryAfter, retryAfterH
     {
       status: statusCode,
       headers: {
+        ...extraHeaders,
         ...JSON_HEADERS_CORS,
-        "Retry-After": String(retryAfterSec)
+        // Lower-case to override a forwarded upstream "retry-after" instead of duplicating it
+        "retry-after": String(retryAfterSec)
       }
     }
   );
