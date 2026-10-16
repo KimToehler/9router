@@ -94,7 +94,7 @@ describe("upstream model CORS headers", () => {
   });
 
   it("preserves upstream identity while converting streaming SSE to Ollama", async () => {
-    const output = transformToOllama(sseResponse({ [UPSTREAM_MODEL_HEADER]: "kiro/glm-5" }), "llama3.2");
+    const output = await transformToOllama(sseResponse({ [UPSTREAM_MODEL_HEADER]: "kiro/glm-5" }), "llama3.2");
 
     expect(output.headers.get(UPSTREAM_MODEL_HEADER)).toBe("kiro/glm-5");
     expect(output.headers.get("content-type")).toBe("application/x-ndjson");
@@ -103,8 +103,8 @@ describe("upstream model CORS headers", () => {
     expect(await output.text()).not.toBe("");
   });
 
-  it.each([204, 304])("preserves headers for no-body Ollama status %i", (status) => {
-    const output = transformToOllama(new Response(null, {
+  it.each([204, 304])("preserves headers for no-body Ollama status %i", async (status) => {
+    const output = await transformToOllama(new Response(null, {
       status,
       headers: {
         [UPSTREAM_MODEL_HEADER]: "kiro/glm-5",
@@ -119,8 +119,8 @@ describe("upstream model CORS headers", () => {
     expect(output.headers.get("Access-Control-Allow-Origin")).toBe("*");
   });
 
-  it.each([204, 205, 304])("does not invent upstream identity for no-body Ollama status %i", (status) => {
-    const output = transformToOllama(new Response(null, {
+  it.each([204, 205, 304])("does not invent upstream identity for no-body Ollama status %i", async (status) => {
+    const output = await transformToOllama(new Response(null, {
       status,
       headers: { "content-type": "text/event-stream" }
     }), "llama3.2");
