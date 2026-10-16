@@ -1,0 +1,7 @@
+# docker compose config — Traefik host rule and image default after 3deb1fc9 (empty placeholder .env; no secrets involved)
+## NINEROUTER_HOST=<unset>
+    image: rg.nl-ams.scw.cloud/onara/9router:fork
+      traefik.http.routers.9router.rule: Host(`router.onara.eu`)
+## NINEROUTER_HOST=staging.example
+    image: rg.nl-ams.scw.cloud/onara/9router:fork
+      traefik.http.routers.9router.rule: Host(`staging.example`)
