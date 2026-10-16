@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { assertPublicUrl } from "@/shared/utils/ssrfGuard.js";
 import { isLocalRequest } from "@/dashboardGuard";
+import { buildAnthropicCompatibleMessagesUrl } from "open-sse/providers/shared.js";
 
 // Fetch with timeout wrapper
 const fetchWithTimeout = (url, options, timeout = 10000) => {
@@ -129,15 +130,16 @@ export async function POST(request) {
         return NextResponse.json({ valid: false, error: "API key unauthorized" });
       }
 
-      // Fallback: try chat/completions if modelId provided
+      // Fallback: send a minimal Anthropic Messages request to the URL the
+      // executor routes to, if modelId provided
       if (modelId) {
-        const chatRes = await fetchWithTimeout(`${normalizedBase}/chat/completions`, {
+        const chatRes = await fetchWithTimeout(buildAnthropicCompatibleMessagesUrl(baseUrl), {
           method: "POST",
           headers: {
-            "Authorization": `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
             "x-api-key": apiKey,
-            "anthropic-version": "2023-06-01"
+            "anthropic-version": "2023-06-01",
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${apiKey}`
           },
           body: JSON.stringify({
             model: modelId,

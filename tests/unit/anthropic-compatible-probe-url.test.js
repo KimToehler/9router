@@ -41,6 +41,7 @@ vi.mock("@/lib/network/proxyTest", () => ({
 
 const { testSingleConnection } = await import("../../src/app/api/providers/[id]/test/testUtils.js");
 const { POST: validateProvider } = await import("../../src/app/api/providers/validate/route.js");
+const { POST: validateProviderNode } = await import("../../src/app/api/provider-nodes/validate/route.js");
 const { getExecutor } = await import("../../open-sse/executors/index.js");
 
 const PROVIDER = "anthropic-compatible-probe-test";
@@ -117,5 +118,30 @@ describe("anthropic-compatible probe URL", () => {
       expect(url).toBe("https://example.test/api/v1/messages");
       expect(executorMessagesUrl(baseUrl)).toBe(url);
     }
+  });
+
+  it("node validation falls back to an Anthropic messages request on the executor's URL", async () => {
+    fetchSpy
+      .mockResolvedValueOnce(new Response("not found", { status: 404 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ type: "message" }), { status: 200 }));
+    const request = new Request("http://localhost/api/provider-nodes/validate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ baseUrl: BASE_URL, apiKey: "sk-test", type: "anthropic-compatible", modelId: MODEL }),
+    });
+
+    const payload = await (await validateProviderNode(request)).json();
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    const [url, options] = fetchSpy.mock.calls[1];
+    expect(url).toBe(executorMessagesUrl(BASE_URL));
+    expect(options.method).toBe("POST");
+    expect(options.headers).toMatchObject({ "x-api-key": "sk-test", "anthropic-version": "2023-06-01" });
+    expect(JSON.parse(options.body)).toEqual({
+      model: MODEL,
+      max_tokens: 1,
+      messages: [{ role: "user", content: "ping" }],
+    });
+    expect(payload).toEqual({ valid: true, method: "chat" });
   });
 });
