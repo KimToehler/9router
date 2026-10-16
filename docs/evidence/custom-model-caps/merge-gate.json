@@ -1,0 +1,29 @@
+{
+  "schema": "omo.merge-gate/v2",
+  "plan": "docs/evidence/custom-model-caps/plan.md",
+  "plan_sha256": "aaae9f7cd15e1365a53da111c3007696c0342acc5183efd7c44c97505fe90a55",
+  "reviewed_sha": "e3da39e76ea44114e8af35d07667cf330126e232",
+  "diff_base": "d0d9db98152d94b7f9f9825fc1b6f97a57c78307",
+  "reviewers_run": ["implementation-audit"],
+  "decision_reason": "Real routing change across 4 layers with no auth, schema, wire-contract or concurrency class; one cross-provider implementation-audit after two whole-diff reviewer passes",
+  "mandatory_class": "none",
+  "implementation_models": ["onara/cc/claude-opus-5-5"],
+  "qa": [
+    { "name": "Default no flag: bifrost/glm-5.3 image request rerouted, /v1/models vision false", "passed": true, "artifact": "docs/evidence/custom-model-caps/qa-api.txt" },
+    { "name": "Vision ON via PATCH: served by Bifrost glm-5.3, quadrant colours correct", "passed": true, "artifact": "docs/evidence/custom-model-caps/qa-api.txt" },
+    { "name": "Vision OFF again without restart", "passed": true, "artifact": "docs/evidence/custom-model-caps/qa-api.txt" },
+    { "name": "Edge: PATCH unknown model 404, invalid caps 400", "passed": true, "artifact": "docs/evidence/custom-model-caps/qa-api.txt" },
+    { "name": "Regression: text-only chat to bifrost/glm-5.3", "passed": true, "artifact": "docs/evidence/custom-model-caps/qa-api.txt" },
+    { "name": "Dashboard Vision switch persists and drives routing (standalone build)", "passed": true, "artifact": "docs/evidence/custom-model-caps/qa-dashboard-toggle.webp" }
+  ],
+  "whole_diff": { "run": true, "reason": "Reviewer passes CustomCapsReview (FAIL, module-local index -> fixed), CustomCapsReReview (PASS), PrefixSeatReview (PASS on e3da39e7)" },
+  "resolution": [
+    { "invocation": "implementation-audit", "agent": "auditor", "model": "onara/cx/gpt-5.6-terra", "independence": "cross-provider" }
+  ],
+  "verdicts": [
+    { "invocation": "implementation-audit", "verdict": "PASS", "trailer_artifact": "docs/evidence/custom-model-caps/implementation-audit.md", "trailer_sha256": "28904aeb01c28e610100de81fbba38ad42d8a234d87f978d94db8e400b036397", "note": "No blockers; residual non-blocking: DB import / node delete reload not covered by automated tests" }
+  ],
+  "blockers": [
+    { "id": "B1", "severity": "high", "location": "src/lib/customModelCaps.js:13", "coverage": "tests/unit/custom-model-caps-store.test.js::a reload from another module copy reaches the installed reader", "fix_sha": "b6d26e407d4189dd60eda0592a3b9d5cfc820609" }
+  ]
+}
