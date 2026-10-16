@@ -19,6 +19,11 @@
 // short-circuits: a hand-written PROVIDER_CAPABILITIES truncation is the
 // gateway's own number and must not be overwritten.
 //
+// The user's custom-model flags (`vision` / `reasoning`, set per model in the
+// dashboard) are applied last and win in both directions: the user knows their
+// gateway, which may serve images for a model the vendor documents as text-only.
+// Installed by the server via setCustomCapsSource(), like the catalog.
+//
 // ── HOW TO ADD / UPDATE A MODEL ──────────────────────────────────────
 // Authoritative data source: https://models.dev/api.json (145 providers, 4000+
 // models, MIT). Each model exposes the exact fields we map below:
@@ -651,6 +656,25 @@ function getCatalogSource() {
   return globalThis.__9rCatalogSource || null;
 }
 
+// User flags from the custom-model store, installed by the server
+// (src/lib/customModelCaps.js). Same globalThis slot as the catalog source, for
+// the same reason: every route chunk must see one install.
+let customCapsSource = null;
+
+/**
+ * Install the user's per-model capability flags (server only).
+ * @param {{ get: (provider: string, model: string) => object|null } | null} source
+ */
+export function setCustomCapsSource(source) {
+  customCapsSource = source;
+  if (typeof globalThis !== "undefined") globalThis.__9rCustomCapsSource = source;
+}
+
+function getCustomCapsSource() {
+  if (typeof globalThis === "undefined") return customCapsSource;
+  return globalThis.__9rCustomCapsSource || null;
+}
+
 // Apply the synced catalog + name heuristic on top of a table-resolved result.
 // Strictly additive: a capability already true stays true, and a false one only
 // flips when an outside source positively declares support.
@@ -715,7 +739,15 @@ function isCommandCodeTextOnly(model) {
   }
   return false;
 }
+// The user's custom-model flags are the last word for exactly this provider +
+// model, ON or OFF; the source returns only the flags the user actually set.
 export function getCapabilitiesForModel(provider, model) {
+  const resolved = resolveCapabilities(provider, model);
+  const custom = provider && model ? getCustomCapsSource()?.get(provider, model) : null;
+  return custom ? { ...resolved, ...custom } : resolved;
+}
+
+function resolveCapabilities(provider, model) {
   if (!model) return { ...DEFAULT_CAPABILITIES };
 
   // Canonical exact lookup strips vendor prefix: "anthropic/claude-opus-4.7" -> "claude-opus-4.7".

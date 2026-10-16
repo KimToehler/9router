@@ -581,6 +581,25 @@ export default function ProviderDetailPage() {
     }
   };
 
+  const handleUpdateCustomModelCaps = async (modelId, caps) => {
+    try {
+      const res = await fetch("/api/models/custom", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ providerAlias: providerStorageAlias, id: modelId, type: "llm", caps }),
+      });
+      if (res.ok) {
+        await fetchCustomModels();
+        if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("customModelChanged"));
+      } else {
+        const data = await res.json();
+        alert(data.error || "Failed to update model");
+      }
+    } catch (error) {
+      console.log("Error updating custom model:", error);
+    }
+  };
+
   const handleDeleteCustomModel = async (modelId, type = "llm", providerAliasOverride = providerStorageAlias) => {
     try {
       const params = new URLSearchParams({ providerAlias: providerAliasOverride, id: modelId, type });
@@ -1172,6 +1191,7 @@ export default function ProviderDetailPage() {
           onDeleteAlias={handleDeleteAlias}
           onAddCustomModel={(modelId) => handleAddCustomModel(modelId, "llm", providerStorageAlias)}
           onDeleteCustomModel={(modelId) => handleDeleteCustomModel(modelId, "llm", providerStorageAlias)}
+          onUpdateCustomModelCaps={handleUpdateCustomModelCaps}
           connections={connections}
           isAnthropic={isAnthropicCompatible}
         />

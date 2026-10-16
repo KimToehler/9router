@@ -8,6 +8,10 @@ export async function register() {
     const { installCatalogSource } = await import("open-sse/providers/catalogOverride.js");
     await installCatalogSource();
 
+    // Custom-model capability flags; routing falls back to table caps on failure.
+    const { installCustomModelCaps } = await import("@/lib/customModelCaps.js");
+    await installCustomModelCaps().catch((err) => console.warn("[CustomCaps] install failed:", err?.message));
+
     const { startModelCatalogSync } = await import("@/lib/modelCatalog/sync.js");
     startModelCatalogSync();
   }

@@ -15,6 +15,7 @@ describe("provider custom model rows", () => {
         fullModel: "ollama/minimax-m2.5",
         source: "custom",
         type: "llm",
+        caps: null,
       },
     ]);
     expect(getProviderCustomModelRows({ customModels, providerAlias: "opencode-go" })).toEqual([
@@ -24,6 +25,7 @@ describe("provider custom model rows", () => {
         fullModel: "opencode-go/minimax-m2.5",
         source: "custom",
         type: "llm",
+        caps: null,
       },
     ]);
   });
@@ -48,6 +50,7 @@ describe("provider custom model rows", () => {
         fullModel: "ollama/custom-a",
         source: "custom",
         type: "llm",
+        caps: null,
       },
       {
         id: "legacy-b",
@@ -78,6 +81,7 @@ describe("provider custom model rows", () => {
         fullModel: "ollama/custom-llm",
         source: "custom",
         type: "llm",
+        caps: null,
       },
     ]);
   });

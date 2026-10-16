@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { exportDb, getSettings, importDb } from "@/lib/localDb";
+import { reloadCustomModelCaps } from "@/lib/customModelCaps.js";
 import { applyOutboundProxyEnv } from "@/lib/network/outboundProxy";
 import { verifyDashboardPassword } from "@/lib/auth/dashboardSession";
 
@@ -31,6 +32,7 @@ export async function POST(request) {
       return NextResponse.json({ error: "Invalid password" }, { status: 401 });
     }
     await importDb(payload);
+    await reloadCustomModelCaps();
 
     // Ensure proxy settings take effect immediately after a DB import.
     try {

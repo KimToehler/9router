@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getCustomModels, addCustomModel, deleteCustomModel } from "@/models";
+import { getCustomModels, addCustomModel, updateCustomModelCaps, deleteCustomModel } from "@/models";
+import { reloadCustomModelCaps } from "@/lib/customModelCaps.js";
 import { CAPACITY_META, isSttTransport } from "@/shared/constants/models";
 
 export const dynamic = "force-dynamic";
@@ -45,10 +46,34 @@ export async function POST(request) {
     const cleanCaps = sanitizeCaps(caps);
     const cleanTransport = sanitizeTransport(transport, type || "llm");
     const added = await addCustomModel({ providerAlias, id, type: type || "llm", name, ...(cleanCaps ? { caps: cleanCaps } : {}), ...(cleanTransport ? { transport: cleanTransport } : {}) });
+    await reloadCustomModelCaps();
     return NextResponse.json({ success: true, added });
   } catch (error) {
     console.log("Error adding custom model:", error);
     return NextResponse.json({ error: "Failed to add custom model" }, { status: 500 });
+  }
+}
+
+// PATCH /api/models/custom - Change capability flags of an existing custom model
+export async function PATCH(request) {
+  try {
+    const { providerAlias, id, type, caps } = await request.json();
+    if (!providerAlias || !id || !caps) {
+      return NextResponse.json({ error: "providerAlias, id and caps required" }, { status: 400 });
+    }
+    const cleanCaps = sanitizeCaps(caps);
+    if (!cleanCaps) {
+      return NextResponse.json({ error: "No valid capability flags" }, { status: 400 });
+    }
+    const found = await updateCustomModelCaps({ providerAlias, id, type: type || "llm", caps: cleanCaps });
+    if (!found) {
+      return NextResponse.json({ error: "Custom model not found" }, { status: 404 });
+    }
+    await reloadCustomModelCaps();
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.log("Error updating custom model:", error);
+    return NextResponse.json({ error: "Failed to update custom model" }, { status: 500 });
   }
 }
 
@@ -63,6 +88,7 @@ export async function DELETE(request) {
       return NextResponse.json({ error: "providerAlias and id required" }, { status: 400 });
     }
     await deleteCustomModel({ providerAlias, id, type });
+    await reloadCustomModelCaps();
     return NextResponse.json({ success: true });
   } catch (error) {
     console.log("Error deleting custom model:", error);

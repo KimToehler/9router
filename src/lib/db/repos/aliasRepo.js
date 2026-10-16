@@ -50,6 +50,23 @@ export async function addCustomModel({ providerAlias, id, type = "llm", name, ca
   return added;
 }
 
+// Merge capability flags into an existing custom model; other flags and fields
+// stay. Returns false when no such model is stored.
+export async function updateCustomModelCaps({ providerAlias, id, type = "llm", caps }) {
+  const k = customKey(providerAlias, id, type);
+  const db = await getAdapter();
+  let found = false;
+  db.transaction(() => {
+    const row = db.get(`SELECT value FROM kv WHERE scope = 'customModels' AND key = ?`, [k]);
+    if (!row) return;
+    const prev = parseJson(row.value) || {};
+    const next = { ...prev, caps: { ...(prev.caps || {}), ...caps } };
+    db.run(`UPDATE kv SET value = ? WHERE scope = 'customModels' AND key = ?`, [stringifyJson(next), k]);
+    found = true;
+  });
+  return found;
+}
+
 export async function deleteCustomModel({ providerAlias, id, type = "llm" }) {
   await customKv.remove(customKey(providerAlias, id, type));
 }
