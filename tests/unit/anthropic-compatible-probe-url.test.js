@@ -187,28 +187,39 @@ describe("anthropic-compatible probe URL", () => {
     expect(result.error).toMatch(/base URL/);
   });
 
-  it("node validation falls back to an Anthropic messages request on the executor's URL", async () => {
-    fetchSpy
-      .mockResolvedValueOnce(new Response("not found", { status: 404 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ type: "message" }), { status: 200 }));
-    const request = new Request("http://localhost/api/provider-nodes/validate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ baseUrl: BASE_URL, apiKey: "sk-test", type: "anthropic-compatible", modelId: MODEL }),
-    });
+  const validateNode = (extra = {}) => validateProviderNode(new Request("http://localhost/api/provider-nodes/validate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ baseUrl: BASE_URL, apiKey: "sk-test", type: "anthropic-compatible", ...extra }),
+  }));
 
-    const payload = await (await validateProviderNode(request)).json();
+  // Gateways such as Bifrost reject /models for keys that can still chat, so
+  // the node check must probe the messages route the executor actually uses.
+  it("node check probes the executor's messages URL, not /models", async () => {
+    fetchSpy.mockImplementation(async (url) => (String(url).endsWith("/models")
+      ? json(401, { error: "developer keys not enabled" })
+      : json(200, { type: "message" })));
 
-    expect(fetchSpy).toHaveBeenCalledTimes(2);
-    const [url, options] = fetchSpy.mock.calls[1];
-    expect(url).toBe(executorMessagesUrl(BASE_URL));
+    const payload = await (await validateNode()).json();
+
+    expect(payload.valid).toBe(true);
+    expect(fetchSpy.mock.calls.map(([url]) => url)).toEqual([executorMessagesUrl(BASE_URL)]);
+  });
+
+  it("node check sends the entered model ID in an Anthropic messages request", async () => {
+    await validateNode({ modelId: MODEL });
+
+    const [, options] = fetchSpy.mock.calls[0];
     expect(options.method).toBe("POST");
     expect(options.headers).toMatchObject({ "x-api-key": "sk-test", "anthropic-version": "2023-06-01" });
-    expect(JSON.parse(options.body)).toEqual({
-      model: MODEL,
-      max_tokens: 1,
-      messages: [{ role: "user", content: "ping" }],
-    });
-    expect(payload).toEqual({ valid: true, method: "chat" });
+    expect(JSON.parse(options.body)).toMatchObject({ model: MODEL, max_tokens: 1 });
+  });
+
+  it.each(STATUS_CASES)("node check classifies %s", async (_label, makeResponse, expected) => {
+    fetchSpy.mockResolvedValue(makeResponse());
+
+    const payload = await (await validateNode()).json();
+
+    expect(payload.valid).toBe(expected);
   });
 });

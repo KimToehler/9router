@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { assertPublicUrl } from "@/shared/utils/ssrfGuard.js";
 import { isLocalRequest } from "@/dashboardGuard";
-import { buildAnthropicCompatibleMessagesUrl } from "open-sse/providers/shared.js";
+import { probeAnthropicCompatible } from "open-sse/services/anthropicCompatibleProbe.js";
 
 // Fetch with timeout wrapper
 const fetchWithTimeout = (url, options, timeout = 10000) => {
@@ -106,58 +106,15 @@ export async function POST(request) {
       });
     }
 
-    // Anthropic Compatible Validation
+    // Anthropic Compatible Validation: probe the messages route the executor
+    // uses. /models is optional on Anthropic-style gateways and some (Bifrost)
+    // reject it for keys that can chat, so it cannot judge the key.
     if (type === "anthropic-compatible") {
-      let normalizedBase = baseUrl.trim().replace(/\/$/, "");
-      if (normalizedBase.endsWith("/messages")) {
-        normalizedBase = normalizedBase.slice(0, -9);
-      }
-
-      const modelsUrl = `${normalizedBase}/models`;
-      const res = await fetchWithTimeout(modelsUrl, {
-        method: "GET",
-        headers: {
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
-          "Authorization": `Bearer ${apiKey}`
-        }
-      });
-
-      if (res.ok) return NextResponse.json({ valid: true });
-
-      // Auth errors - no point trying chat fallback
-      if (res.status === 401 || res.status === 403) {
-        return NextResponse.json({ valid: false, error: "API key unauthorized" });
-      }
-
-      // Fallback: send a minimal Anthropic Messages request to the URL the
-      // executor routes to, if modelId provided
-      if (modelId) {
-        const chatRes = await fetchWithTimeout(buildAnthropicCompatibleMessagesUrl(baseUrl), {
-          method: "POST",
-          headers: {
-            "x-api-key": apiKey,
-            "anthropic-version": "2023-06-01",
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${apiKey}`
-          },
-          body: JSON.stringify({
-            model: modelId,
-            messages: [{ role: "user", content: "ping" }],
-            max_tokens: 1
-          })
-        });
-        if (chatRes.ok) {
-          return NextResponse.json({ valid: true, method: "chat" });
-        }
-        return NextResponse.json({
-          valid: false,
-          error: getChatErrorMessage(chatRes.status),
-          method: "chat"
-        });
-      }
-
-      return NextResponse.json({ valid: false, error: getModelsErrorMessage(res.status) });
+      const { valid, error } = await probeAnthropicCompatible(
+        { baseUrl, apiKey, model: modelId?.trim() },
+        (url, options) => fetchWithTimeout(url, options),
+      );
+      return NextResponse.json({ valid, error });
     }
 
     // OpenAI Compatible Validation (Default)
