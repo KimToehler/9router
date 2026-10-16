@@ -11,7 +11,7 @@ import {
   getNousApiKeyValidationError,
   isNousApiKeyAccepted,
 } from "open-sse/services/nous.js";
-import { buildAnthropicCompatibleMessagesUrl } from "open-sse/providers/shared.js";
+import { probeAnthropicCompatible } from "open-sse/services/anthropicCompatibleProbe.js";
 import { normalizeProviderId } from "@/lib/providerNormalization";
 
 // Probe a webSearch/webFetch provider using its searchConfig/fetchConfig.
@@ -162,30 +162,12 @@ export async function POST(request) {
           return NextResponse.json({ error: "Anthropic Compatible node not found" }, { status: 404 });
         }
 
-        const messagesUrl = buildAnthropicCompatibleMessagesUrl(node.baseUrl);
-        const model = node.defaultModel || "claude-3-haiku-20240307";
-
-        const res = await fetch(messagesUrl, {
-          method: "POST",
-          headers: {
-            "x-api-key": apiKey,
-            "anthropic-version": "2023-06-01",
-            "content-type": "application/json",
-            "Authorization": `Bearer ${apiKey}`,
-          },
-          body: JSON.stringify({
-            model,
-            max_tokens: 1,
-            messages: [{ role: "user", content: "test" }],
-          }),
+        const { valid, error } = await probeAnthropicCompatible({
+          baseUrl: node.baseUrl,
+          apiKey,
+          model: node.defaultModel,
         });
-
-        // 400/529 still confirms key accepted; only 401/403 = bad key
-        isValid = res.status !== 401 && res.status !== 403;
-        return NextResponse.json({
-          valid: isValid,
-          error: isValid ? null : "Invalid API key",
-        });
+        return NextResponse.json({ valid, error });
       }
 
       if (provider === "cloudflare-ai") {

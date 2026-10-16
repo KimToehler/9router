@@ -7,7 +7,7 @@ import { probeBedrockCredentials } from "open-sse/executors/bedrock.js";
 import { resolveOllamaLocalHost, PROVIDERS } from "open-sse/config/providers.js";
 import { CODEX_CLI_VERSION } from "open-sse/config/appConstants.js";
 import { GROK_CLI_PAGER_USER_AGENT, GROK_CLI_VERSION } from "open-sse/config/grokCli.js";
-import { buildAnthropicCompatibleMessagesUrl } from "open-sse/providers/shared.js";
+import { probeAnthropicCompatible } from "open-sse/services/anthropicCompatibleProbe.js";
 import {
   NOUS_CHAT_COMPLETIONS_URL,
   NOUS_VALIDATION_MODEL,
@@ -536,25 +536,10 @@ async function testApiKeyConnection(connection, effectiveProxy = null) {
     const baseUrl = connection.providerSpecificData?.baseUrl;
     if (!baseUrl) return { valid: false, error: "Missing base URL" };
     try {
-      const messagesUrl = buildAnthropicCompatibleMessagesUrl(baseUrl);
-      const model = connection.defaultModel || "claude-3-haiku-20240307";
-      const res = await fetchWithConnectionProxy(messagesUrl, {
-        method: "POST",
-        headers: {
-          "x-api-key": connection.apiKey,
-          "anthropic-version": "2023-06-01",
-          "content-type": "application/json",
-          "Authorization": `Bearer ${connection.apiKey}`,
-        },
-        body: JSON.stringify({
-          model,
-          max_tokens: 1,
-          messages: [{ role: "user", content: "test" }],
-        }),
-      }, effectiveProxy);
-      // 400/529 still confirms key accepted; only 401/403 = bad key
-      const valid = res.status !== 401 && res.status !== 403;
-      return { valid, error: valid ? null : "Invalid API key or base URL" };
+      return await probeAnthropicCompatible(
+        { baseUrl, apiKey: connection.apiKey, model: connection.defaultModel },
+        (url, options) => fetchWithConnectionProxy(url, options, effectiveProxy),
+      );
     } catch (err) {
       return { valid: false, error: err.message };
     }

@@ -120,6 +120,73 @@ describe("anthropic-compatible probe URL", () => {
     }
   });
 
+  const json = (status, body) => new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+  const unknownModel404 = () => json(404, {
+    type: "error",
+    error: { type: "not_found_error", message: "model: claude-3-haiku-20240307" },
+  });
+  const route404 = () => json(404, { error: "not found" });
+
+  const STATUS_CASES = [
+    ["200 OK", () => json(200, { type: "message" }), true],
+    ["400 unknown model on a gateway", () => json(400, { error: "MODEL_UNKNOWN" }), true],
+    ["404 unknown model from Anthropic", unknownModel404, true],
+    ["529 overloaded", () => json(529, { type: "error" }), true],
+    ["401 bad key", () => json(401, { type: "error" }), false],
+    ["403 forbidden", () => json(403, { type: "error" }), false],
+    ["404 missing messages route", route404, false],
+  ];
+
+  it.each(STATUS_CASES)("Test connection classifies %s", async (_label, makeResponse, expected) => {
+    fetchSpy.mockResolvedValue(makeResponse());
+    mocks.getProviderConnectionById.mockResolvedValue({
+      id: "conn-1",
+      provider: PROVIDER,
+      authType: "apikey",
+      apiKey: "sk-test",
+      providerSpecificData: { baseUrl: BASE_URL },
+    });
+
+    const result = await testSingleConnection("conn-1");
+
+    expect(result.valid).toBe(expected);
+    expect(mocks.updateProviderConnection).toHaveBeenCalledWith(
+      "conn-1",
+      expect.objectContaining({ testStatus: expected ? "active" : "error" }),
+    );
+  });
+
+  it.each(STATUS_CASES)("API-key validation classifies %s", async (_label, makeResponse, expected) => {
+    fetchSpy.mockResolvedValue(makeResponse());
+    const request = new Request("http://localhost/api/providers/validate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider: PROVIDER, apiKey: "sk-test" }),
+    });
+
+    const payload = await (await validateProvider(request)).json();
+
+    expect(payload.valid).toBe(expected);
+  });
+
+  it("a missing messages route names the base URL as the cause", async () => {
+    fetchSpy.mockResolvedValue(route404());
+    mocks.getProviderConnectionById.mockResolvedValue({
+      id: "conn-1",
+      provider: PROVIDER,
+      authType: "apikey",
+      apiKey: "sk-test",
+      providerSpecificData: { baseUrl: BASE_URL },
+    });
+
+    const result = await testSingleConnection("conn-1");
+
+    expect(result.error).toMatch(/base URL/);
+  });
+
   it("node validation falls back to an Anthropic messages request on the executor's URL", async () => {
     fetchSpy
       .mockResolvedValueOnce(new Response("not found", { status: 404 }))
