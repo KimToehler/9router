@@ -359,6 +359,7 @@ describe("client-facing upstream identity", () => {
       getModelAliases: vi.fn(),
       getComboByName: vi.fn(),
       getProviderNodes: vi.fn(),
+      getProviderConnectionById: vi.fn(async () => null),
     }));
     vi.doMock("@/sse/services/model.js", () => ({
       getModelInfo: vi.fn(async () => ({ provider: "deepseek", model: "deepseek-v4-pro", clientModelId: "ds/deepseek-v4-pro" })),
