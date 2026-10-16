@@ -21,7 +21,6 @@ describe("custom model capability override", () => {
     const caps = getCapabilitiesForModel(NODE, "glm-5.3");
     expect(caps.vision).toBe(true);
     expect(caps.contextWindow).toBe(1000000);
-    expect(caps.thinkingFormat).toBe("zai");
     expect(getCapabilitiesForModel("zai", "glm-5.3").vision).toBe(false);
   });
 

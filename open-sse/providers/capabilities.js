@@ -19,6 +19,10 @@
 // short-circuits: a hand-written PROVIDER_CAPABILITIES truncation is the
 // gateway's own number and must not be overwritten.
 //
+// Dynamic anthropic-compatible-* nodes then get the Anthropic thinking
+// contract: a non-Claude thinking format from a model rule is replaced by
+// claude-budget (applyTransportThinkingContract), before the user's flags apply.
+//
 // The user's custom-model flags (`vision` / `reasoning`, set per model in the
 // dashboard) are applied last and win in both directions: the user knows their
 // gateway, which may serve images for a model the vendor documents as text-only.
@@ -739,10 +743,32 @@ function isCommandCodeTextOnly(model) {
   }
   return false;
 }
+
+// Dynamic anthropic-compatible-* nodes speak plain Anthropic Messages whatever
+// weights sit behind them. A vendor thinking format from a model rule (z.ai's
+// thinking+reasoning_effort for *glm-5.3*, deepseek, kimi, qwen, openai, ...)
+// describes that vendor's own API, not the node's: on these nodes the Anthropic
+// budget contract applies (thinking.type disabled | enabled + budget_tokens).
+// Claude-native formats stay as resolved, so a Claude model behind a gateway
+// keeps adaptive thinking and its can-disable limits.
+const CLAUDE_THINKING_FORMATS = new Set(["claude-budget", "claude-adaptive"]);
+const ANTHROPIC_MESSAGES_THINKING = {
+  thinkingFormat: "claude-budget",
+  thinkingCanDisable: true,
+  thinkingEffortSupported: false,
+  thinkingRange: null,
+};
+
+function applyTransportThinkingContract(provider, caps) {
+  if (!provider?.startsWith?.("anthropic-compatible-")) return caps;
+  if (!caps.thinkingFormat || CLAUDE_THINKING_FORMATS.has(caps.thinkingFormat)) return caps;
+  return { ...caps, ...ANTHROPIC_MESSAGES_THINKING };
+}
+
 // The user's custom-model flags are the last word for exactly this provider +
 // model, ON or OFF; the source returns only the flags the user actually set.
 export function getCapabilitiesForModel(provider, model) {
-  const resolved = resolveCapabilities(provider, model);
+  const resolved = applyTransportThinkingContract(provider, resolveCapabilities(provider, model));
   const custom = provider && model ? getCustomCapsSource()?.get(provider, model) : null;
   return custom ? { ...resolved, ...custom } : resolved;
 }
