@@ -142,7 +142,17 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
 
   const clientRequestedStreaming = body.stream === true || sourceFormat === FORMATS.ANTIGRAVITY || sourceFormat === FORMATS.GEMINI || sourceFormat === FORMATS.GEMINI_CLI;
   const providerRequiresStreaming = PROVIDERS[provider]?.forceStream === true;
-  let stream = providerRequiresStreaming ? true : (body.stream !== false);
+
+  const acceptHeader = clientRawRequest?.headers?.accept || "";
+  const clientPrefersJson = acceptHeader.includes("application/json");
+  const clientPrefersSSE = acceptHeader.includes("text/event-stream");
+
+  // An absent `stream` means JSON on the OpenAI Chat/Responses and Anthropic
+  // Messages APIs; only Gemini-family bodies stream without the flag (their
+  // URL action decides). Same-format requests reach the upstream without a
+  // `stream` field, so streaming here without it would wrap a JSON reply in SSE.
+  // Protocols that default to streaming (Ollama /api/chat) set it in their route.
+  let stream = providerRequiresStreaming ? true : (typeof body.stream === "boolean" ? body.stream : clientRequestedStreaming);
 
   // Image generation models require non-streaming (Google v1internal:generateContent)
   const modelType = getModelType(alias, model);
@@ -157,11 +167,8 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   const detectedTool = detectClientTool(clientRawRequest?.headers || {}, body);
   if (detectedTool === "deepseek-tui" && body.stream !== true) stream = false;
 
-  // Check client Accept header preference for non-streaming requests
-  // This fixes AI SDK compatibility where clients send Accept: application/json
-  const acceptHeader = clientRawRequest?.headers?.accept || "";
-  const clientPrefersJson = acceptHeader.includes("application/json");
-  const clientPrefersSSE = acceptHeader.includes("text/event-stream");
+  // Accept: application/json forces JSON (AI SDK generateObject/generateText)
+  // unless the body explicitly asks for streaming.
   if (clientPrefersJson && !clientPrefersSSE && body.stream !== true && !providerRequiresStreaming) {
     stream = false;
   }

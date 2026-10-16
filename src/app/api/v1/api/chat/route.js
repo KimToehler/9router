@@ -24,14 +24,23 @@ export async function OPTIONS() {
 export async function POST(request) {
   await ensureInitialized();
   
-  const clonedReq = request.clone();
-  let modelName = "llama3.2";
+  let body;
   try {
-    const body = await clonedReq.json();
-    modelName = body.model || "llama3.2";
-  } catch {}
+    body = await request.clone().json();
+  } catch {
+    // Let handleChat answer the malformed body with its usual 400.
+    return transformToOllama(await handleChat(request), "llama3.2");
+  }
+  const modelName = body.model || "llama3.2";
 
-  const response = await handleChat(request);
+  // Ollama's /api/chat streams unless the client sends stream:false.
+  if (typeof body.stream !== "boolean") body.stream = true;
+
+  const response = await handleChat(new Request(request.url, {
+    method: "POST",
+    headers: request.headers,
+    body: JSON.stringify(body),
+  }));
   return transformToOllama(response, modelName);
 }
 
