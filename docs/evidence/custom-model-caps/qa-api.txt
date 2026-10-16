@@ -1,21 +1,21 @@
-# F1 QA transcript — 9router feat/custom-model-caps @ e3da39e76ea44114e8af35d07667cf330126e232
-server: next build --webpack + node custom-server.js, DATA_DIR=/tmp/9r-smoke-data (fresh), 2026-10-16T14:46:19+0200
+# F1 QA transcript — 9router custom-model capability flags @ 13362198a72557745a5bb64bdab0faa021048242
+server: next build --webpack, run as .next/standalone + custom-server.js (Dockerfile layout), DATA_DIR=/tmp/9r-smoke-data (fresh), 2026-10-16T15:05:32+0200
 secrets: Bifrost and 9router keys redacted
 POST /api/auth/login -> 200
-POST /api/provider-nodes (prefix bifrost) -> 201 id=anthropic-compatible-e14f891c-018e-48ac-94b8-d9e08d62e3e2
+POST /api/provider-nodes (prefix bifrost) -> 201 id=anthropic-compatible-db01e7f4-af6e-4f92-afbc-abb973e262b1
 POST /api/providers (Bifrost key) -> 201
 POST /api/models/custom glm-5.3 (no caps) -> 200 {"success":true,"added":true}
 apiKeys: inserted QA 9router key
 [row1 default] /v1/models bifrost/glm-5.3 -> {'context_length': 1000000, 'max_completion_tokens': 128000, 'vision': False}
-[row1 default, no flag] POST /v1/messages bifrost/glm-5.3 + quadrant PNG -> HTTP 200 served_model=mimo-v2.6-flash-free text=['blue, yellow, green, magenta'] input_tokens=693
+[row1 default, no flag] POST /v1/messages bifrost/glm-5.3 + quadrant PNG -> HTTP 200 served_model=mimo-v2.6-flash-free text_tail=['blue, yellow, green, magenta'] input_tokens=693
 PATCH /api/models/custom vision:true -> 200 {"success":true}
 [row2 vision on] /v1/models bifrost/glm-5.3 -> {'context_length': 1000000, 'max_completion_tokens': 128000, 'vision': True}
-[row2 vision on] POST /v1/messages bifrost/glm-5.3 + quadrant PNG -> HTTP 200 served_model=glm-5.3 text=['The user is asking me to identify the colors of four quadrants in an image. The image shows a square divided into four quadrants by white lines: the top-left quadrant is blue, the top-right is yellow, the bottom-left is green, and the bottom-right is purple. The user wants the answer in the format: "blue, yellow, green, purple".blue, yellow, green, purple'] input_tokens=4655
+[row2 vision on] POST /v1/messages bifrost/glm-5.3 + quadrant PNG -> HTTP 200 served_model=glm-5.3 text_tail=['blue, yellow, green, purple'] input_tokens=4655
 PATCH /api/models/custom vision:false -> 200 {"success":true}
 [row3 vision off] /v1/models bifrost/glm-5.3 -> {'context_length': 1000000, 'max_completion_tokens': 128000, 'vision': False}
-[row3 vision off] POST /v1/messages bifrost/glm-5.3 + quadrant PNG -> HTTP 200 served_model=mimo-v2.6-flash-free text=['Blue, yellow, green, purple'] input_tokens=693
+[row3 vision off] POST /v1/messages bifrost/glm-5.3 + quadrant PNG -> HTTP 200 served_model=mimo-v2.6-flash-free text_tail=['Blue, yellow, green, purple'] input_tokens=693
 [row4 edge] PATCH unknown model -> 404 {"error":"Custom model not found"}
 [row4 edge] PATCH invalid caps -> 400 {"error":"No valid capability flags"}
 [row5 regression] text-only POST /v1/messages bifrost/glm-5.3 -> HTTP 200 served_model=glm-5.3 text=['pong']
-[row6 dashboard] after UI toggle Vision=on (persisted across reload): POST /v1/messages bifrost/glm-5.3 + quadrant PNG -> served_model=glm-5.3 text=['blue, yellow, green, purple'] input_tokens=4655
-[row6 dashboard] UI switches glm-5.3 row: before=Vision=false,Reasoning=false; after click=Vision=true; after reload=Vision=true (screenshot qa-dashboard-toggle.webp; server: .next/standalone + custom-server.js as in Dockerfile)
+[row6 dashboard] after UI toggle Vision=on (persisted across reload): POST /v1/messages bifrost/glm-5.3 + quadrant PNG -> served_model=glm-5.3 text_tail=['arated words.blue, yellow, green, purple'] input_tokens=4655
+[row6 dashboard] UI switches glm-5.3 row: before=Vision=false,Reasoning=false; after click=Vision=true; after reload=Vision=true (screenshot qa-dashboard-toggle.webp)
