@@ -12,6 +12,23 @@ const LOCAL_PROVIDER_ALIASES = {
 
 const RESERVED_PROVIDER_PREFIXES = new Set(Object.keys(LOCAL_PROVIDER_ALIASES));
 
+/**
+ * Resolve a user-defined provider-node prefix to the node a request with that
+ * prefix routes to, or null. Built-in provider ids/aliases (`cf`, `openai`, …)
+ * are reserved and never resolve to a node; on duplicate prefixes the first
+ * node in type order openai → anthropic → embedding wins.
+ * @param {string} prefix
+ */
+export async function resolvePrefixNode(prefix) {
+  if (!prefix || RESERVED_PROVIDER_PREFIXES.has(prefix)) return null;
+  for (const type of ["openai-compatible", "anthropic-compatible", "custom-embedding"]) {
+    const nodes = await getProviderNodes({ type });
+    const match = nodes.find((node) => node.prefix === prefix);
+    if (match) return match;
+  }
+  return null;
+}
+
 function withClientModelId(modelInfo, clientModelId) {
   Object.defineProperty(modelInfo, "clientModelId", { value: clientModelId });
   return modelInfo;
@@ -47,24 +64,9 @@ export async function getModelInfo(modelStr) {
   if (!parsed.isAlias) {
     // Provider-node prefixes are user-defined. They must not override built-in
     // provider ids/aliases such as `cf`, `cloudflare-ai`, `openai`, or `hf`.
-    if (!RESERVED_PROVIDER_PREFIXES.has(parsed.providerAlias)) {
-      const openaiNodes = await getProviderNodes({ type: "openai-compatible" });
-      const matchedOpenAI = openaiNodes.find((node) => node.prefix === parsed.providerAlias);
-      if (matchedOpenAI) {
-        return withClientModelId({ provider: matchedOpenAI.id, model: parsed.model }, `${matchedOpenAI.prefix}/${parsed.model}`);
-      }
-
-      const anthropicNodes = await getProviderNodes({ type: "anthropic-compatible" });
-      const matchedAnthropic = anthropicNodes.find((node) => node.prefix === parsed.providerAlias);
-      if (matchedAnthropic) {
-        return withClientModelId({ provider: matchedAnthropic.id, model: parsed.model }, `${matchedAnthropic.prefix}/${parsed.model}`);
-      }
-
-      const embeddingNodes = await getProviderNodes({ type: "custom-embedding" });
-      const matchedEmbedding = embeddingNodes.find((node) => node.prefix === parsed.providerAlias);
-      if (matchedEmbedding) {
-        return withClientModelId({ provider: matchedEmbedding.id, model: parsed.model }, `${matchedEmbedding.prefix}/${parsed.model}`);
-      }
+    const node = await resolvePrefixNode(parsed.providerAlias);
+    if (node) {
+      return withClientModelId({ provider: node.id, model: parsed.model }, `${node.prefix}/${parsed.model}`);
     }
     return withClientModelId(
       { provider: parsed.provider, model: parsed.model },

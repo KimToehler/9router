@@ -160,4 +160,67 @@ describe("custom model caps from the store", () => {
     expect((await patch({ providerAlias: NODE, id: "glm-5.3", caps: { foo: true } })).status).toBe(400);
     expect((await patch({ providerAlias: NODE, id: "glm-5.3" })).status).toBe(400);
   });
+
+  // A request for `bifrost/glm-5.3` with an image is checked by the capacity
+  // adapter on that seat string, before the prefix is resolved to the node id.
+  // Without the flag on the prefix seat, the adapter reroutes the request to its
+  // vision fallback model instead of the node.
+  it("the node prefix seat carries the flags, so the capacity adapter keeps the node", async () => {
+    const { createProviderNode } = await import("@/models/index.js");
+    const { augmentModelsWithCapacityAdapter } = await import("../../open-sse/services/capacityAdapter.js");
+    const settings = { capacityAdapter: { vision: { enabled: true, models: ["oc/mimo-v2.6-flash-free"] } } };
+    const node = await createProviderNode({ type: "anthropic-compatible", name: "Bifrost", prefix: "bifrost", baseUrl: "https://example.test/api/v1" });
+    await addCustomModel({ providerAlias: node.id, id: "glm-5.3", caps: { vision: true } });
+    await store.installCustomModelCaps();
+
+    expect(caps.getCapabilitiesForModel("bifrost", "glm-5.3").vision).toBe(true);
+    expect(augmentModelsWithCapacityAdapter(["bifrost/glm-5.3"], new Set(["vision"]), settings)).toEqual(["bifrost/glm-5.3"]);
+
+    expect((await patch({ providerAlias: node.id, id: "glm-5.3", caps: { vision: false } })).status).toBe(200);
+    expect(augmentModelsWithCapacityAdapter(["bifrost/glm-5.3"], new Set(["vision"]), settings))
+      .toEqual(["oc/mimo-v2.6-flash-free", "bifrost/glm-5.3"]);
+  });
+
+  it.each([
+    ["a provider id", "claude"],
+    ["a provider alias", "cc"],
+    ["a registry-only alias", "gb"],
+    ["a local alias", "xmtp"],
+  ])("a prefix that is %s does not shadow that seat", async (_label, prefix) => {
+    const { createProviderNode } = await import("@/models/index.js");
+    const node = await createProviderNode({ type: "anthropic-compatible", name: "Shadow", prefix, baseUrl: "https://example.test/v1" });
+    await addCustomModel({ providerAlias: node.id, id: "some-model", caps: { vision: true } });
+    await store.installCustomModelCaps();
+
+    expect(caps.getCapabilitiesForModel(node.id, "some-model").vision).toBe(true);
+    expect(caps.getCapabilitiesForModel(prefix, "some-model").vision).toBe(false);
+  });
+
+  it("on a duplicate prefix only the node routing resolves to owns the seat", async () => {
+    const { createProviderNode } = await import("@/models/index.js");
+    const { getModelInfo } = await import("@/sse/services/model.js");
+    const openai = await createProviderNode({ type: "openai-compatible", name: "A", prefix: "dup", baseUrl: "https://a.test/v1" });
+    const anthropic = await createProviderNode({ type: "anthropic-compatible", name: "B", prefix: "dup", baseUrl: "https://b.test/v1" });
+    await addCustomModel({ providerAlias: anthropic.id, id: "m", caps: { vision: true } });
+    await store.installCustomModelCaps();
+
+    expect((await getModelInfo("dup/m")).provider).toBe(openai.id);
+    expect(caps.getCapabilitiesForModel("dup", "m").vision).toBe(false);
+  });
+
+  it("renaming the node prefix moves the flags to the new seat", async () => {
+    const { createProviderNode } = await import("@/models/index.js");
+    const nodeRoute = await import("@/app/api/provider-nodes/[id]/route.js");
+    const node = await createProviderNode({ type: "anthropic-compatible", name: "Bifrost", prefix: "bifrost", baseUrl: "https://example.test/api/v1" });
+    await addCustomModel({ providerAlias: node.id, id: "glm-5.3", caps: { vision: true } });
+    await store.installCustomModelCaps();
+
+    const put = await nodeRoute.PUT(
+      request("PUT", `http://localhost/api/provider-nodes/${node.id}`, { name: "Bifrost", prefix: "bf", baseUrl: "https://example.test/api/v1" }),
+      { params: Promise.resolve({ id: node.id }) },
+    );
+    expect(put.status).toBe(200);
+    expect(caps.getCapabilitiesForModel("bf", "glm-5.3").vision).toBe(true);
+    expect(caps.getCapabilitiesForModel("bifrost", "glm-5.3").vision).toBe(false);
+  });
 });

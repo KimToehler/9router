@@ -74,6 +74,8 @@ export async function PUT(request, { params }) {
       })
     )));
 
+    // Model flags are also indexed under the node prefix, which may have changed.
+    await reloadCustomModelCaps();
     return NextResponse.json({ node: updated });
   } catch (error) {
     console.log("Error updating provider node:", error);
