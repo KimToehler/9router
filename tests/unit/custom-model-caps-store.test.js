@@ -208,6 +208,20 @@ describe("custom model caps from the store", () => {
     expect(caps.getCapabilitiesForModel("dup", "m").vision).toBe(false);
   });
 
+  // Provider prefixes and model ids are free text; a `|` in either must not
+  // let two different (provider, model) pairs share one index entry.
+  it("keeps (provider, model) pairs apart when an id contains the separator", async () => {
+    const { createProviderNode } = await import("@/models/index.js");
+    const a = await createProviderNode({ type: "anthropic-compatible", name: "A", prefix: "pa", baseUrl: "https://a.test/v1" });
+    const b = await createProviderNode({ type: "anthropic-compatible", name: "B", prefix: `${a.id}|left`, baseUrl: "https://b.test/v1" });
+    await addCustomModel({ providerAlias: a.id, id: "left|right", caps: { vision: false } });
+    await addCustomModel({ providerAlias: b.id, id: "right", caps: { vision: true } });
+    await store.installCustomModelCaps();
+
+    expect(caps.getCapabilitiesForModel(a.id, "left|right").vision).toBe(false);
+    expect(caps.getCapabilitiesForModel(`${a.id}|left`, "right").vision).toBe(true);
+  });
+
   it("renaming the node prefix moves the flags to the new seat", async () => {
     const { createProviderNode } = await import("@/models/index.js");
     const nodeRoute = await import("@/app/api/provider-nodes/[id]/route.js");
@@ -221,6 +235,38 @@ describe("custom model caps from the store", () => {
     );
     expect(put.status).toBe(200);
     expect(caps.getCapabilitiesForModel("bf", "glm-5.3").vision).toBe(true);
+    expect(caps.getCapabilitiesForModel("bifrost", "glm-5.3").vision).toBe(false);
+  });
+
+  it("deleting the node drops its flags from both seats", async () => {
+    const { createProviderNode } = await import("@/models/index.js");
+    const nodeRoute = await import("@/app/api/provider-nodes/[id]/route.js");
+    const node = await createProviderNode({ type: "anthropic-compatible", name: "Bifrost", prefix: "bifrost", baseUrl: "https://example.test/api/v1" });
+    await addCustomModel({ providerAlias: node.id, id: "glm-5.3", caps: { vision: true } });
+    await store.installCustomModelCaps();
+
+    const del = await nodeRoute.DELETE(request("DELETE", `http://localhost/api/provider-nodes/${node.id}`), { params: Promise.resolve({ id: node.id }) });
+    expect(del.status).toBe(200);
+    expect(caps.getCapabilitiesForModel(node.id, "glm-5.3").vision).toBe(false);
+    expect(caps.getCapabilitiesForModel("bifrost", "glm-5.3").vision).toBe(false);
+  });
+
+  it("a DB import replaces the installed flags", async () => {
+    const { createProviderNode, exportDb } = await import("@/lib/localDb");
+    const dbRoute = await import("@/app/api/settings/database/route.js");
+    const node = await createProviderNode({ type: "anthropic-compatible", name: "Bifrost", prefix: "bifrost", baseUrl: "https://example.test/api/v1" });
+    const backup = await exportDb();
+    await addCustomModel({ providerAlias: node.id, id: "glm-5.3", caps: { vision: true } });
+    await store.installCustomModelCaps();
+    expect(caps.getCapabilitiesForModel("bifrost", "glm-5.3").vision).toBe(true);
+
+    const res = await dbRoute.POST(new Request("http://localhost/api/settings/database", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-9r-cli-token": "test" },
+      body: JSON.stringify(backup),
+    }));
+    expect(res.status).toBe(200);
+    expect(caps.getCapabilitiesForModel(node.id, "glm-5.3").vision).toBe(false);
     expect(caps.getCapabilitiesForModel("bifrost", "glm-5.3").vision).toBe(false);
   });
 });
