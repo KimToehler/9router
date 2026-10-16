@@ -41,7 +41,7 @@ services:
     # Pinned, immutable tag so `docker compose up -d` rolls out a known build
     # (not a moving :latest). Bump the suffix when you rebuild from a new base.
     # Override without editing this file via NINEROUTER_IMAGE in .env.
-    image: ${NINEROUTER_IMAGE:-rg.nl-ams.scw.cloud/onara/9router:0.5.30-headroom-timeout}
+    image: ${NINEROUTER_IMAGE:-rg.nl-ams.scw.cloud/onara/9router:fork}
     build:
       context: .
       dockerfile: Dockerfile
@@ -61,7 +61,7 @@ services:
       - traefik.enable=true
       # Required when the container is on more than one network.
       - traefik.docker.network=traefik
-      - traefik.http.routers.9router.rule=Host(`${NINEROUTER_HOST:-apollo.mittelstaedts.com}`)
+      - traefik.http.routers.9router.rule=Host(`${NINEROUTER_HOST:-router.onara.eu}`)
       - traefik.http.routers.9router.entrypoints=websecure
       - traefik.http.routers.9router.tls.certresolver=${TRAEFIK_CERTRESOLVER:-le}
       - traefik.http.routers.9router.service=9router
