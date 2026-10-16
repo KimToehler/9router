@@ -89,6 +89,15 @@ export const KIMI_CODING_BASE_URL = "https://api.kimi.com/coding/v1/messages";
 export const OPENAI_COMPAT_BASE = "https://api.openai.com/v1";
 export const ANTHROPIC_COMPAT_BASE = "https://api.anthropic.com/v1";
 
+// Messages endpoint for an anthropic-compatible node. The stored baseUrl
+// already includes the version segment (".../v1"), so only "/messages" is
+// appended. Routing and the connection probes share this so they cannot drift.
+export function buildAnthropicCompatibleMessagesUrl(baseUrl) {
+  let normalized = (baseUrl?.trim() || ANTHROPIC_COMPAT_BASE).replace(/\/$/, "");
+  if (normalized.endsWith("/messages")) normalized = normalized.slice(0, -"/messages".length);
+  return `${normalized}/messages`;
+}
+
 // Official Antigravity IDE Desktop 2.22.0 fingerprint captured from macOS arm64.
 // Keep this static even when 9router runs on Linux: the provider profile is
 // intentionally matching the IDE client, not the server host.

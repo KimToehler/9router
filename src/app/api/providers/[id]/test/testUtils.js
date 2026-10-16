@@ -7,6 +7,7 @@ import { probeBedrockCredentials } from "open-sse/executors/bedrock.js";
 import { resolveOllamaLocalHost, PROVIDERS } from "open-sse/config/providers.js";
 import { CODEX_CLI_VERSION } from "open-sse/config/appConstants.js";
 import { GROK_CLI_PAGER_USER_AGENT, GROK_CLI_VERSION } from "open-sse/config/grokCli.js";
+import { buildAnthropicCompatibleMessagesUrl } from "open-sse/providers/shared.js";
 import {
   NOUS_CHAT_COMPLETIONS_URL,
   NOUS_VALIDATION_MODEL,
@@ -532,12 +533,10 @@ async function testApiKeyConnection(connection, effectiveProxy = null) {
   }
 
   if (isAnthropicCompatibleProvider(connection.provider)) {
-    let modelsBase = connection.providerSpecificData?.baseUrl;
-    if (!modelsBase) return { valid: false, error: "Missing base URL" };
+    const baseUrl = connection.providerSpecificData?.baseUrl;
+    if (!baseUrl) return { valid: false, error: "Missing base URL" };
     try {
-      modelsBase = modelsBase.replace(/\/$/, "");
-      if (modelsBase.endsWith("/messages")) modelsBase = modelsBase.slice(0, -9);
-      const messagesUrl = `${modelsBase}/v1/messages`;
+      const messagesUrl = buildAnthropicCompatibleMessagesUrl(baseUrl);
       const model = connection.defaultModel || "claude-3-haiku-20240307";
       const res = await fetchWithConnectionProxy(messagesUrl, {
         method: "POST",

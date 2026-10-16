@@ -1,7 +1,7 @@
 import { BaseExecutor } from "./base.js";
 import { randomUUID } from "node:crypto";
 import { PROVIDERS, PROVIDER_OAUTH } from "../config/providers.js";
-import { ANTHROPIC_API_VERSION, OPENAI_COMPAT_BASE, ANTHROPIC_COMPAT_BASE, selectAnthropicBeta, mergeAnthropicBeta } from "../providers/shared.js";
+import { ANTHROPIC_API_VERSION, OPENAI_COMPAT_BASE, buildAnthropicCompatibleMessagesUrl, selectAnthropicBeta, mergeAnthropicBeta } from "../providers/shared.js";
 import { resolveOpenAICompatibleApiType } from "../services/provider.js";
 import { OAUTH_ENDPOINTS, buildKimiHeaders, NOUS_ATTRIBUTION } from "../config/appConstants.js";
 import { buildClineHeaders } from "../shared/clineAuth.js";
@@ -150,9 +150,7 @@ export class DefaultExecutor extends BaseExecutor {
       return `${normalized}${path}`;
     }
     if (this.provider?.startsWith?.("anthropic-compatible-")) {
-      const baseUrl = credentials?.providerSpecificData?.baseUrl || ANTHROPIC_COMPAT_BASE;
-      const normalized = baseUrl.replace(/\/$/, "");
-      return `${normalized}/messages`;
+      return buildAnthropicCompatibleMessagesUrl(credentials?.providerSpecificData?.baseUrl);
     }
     // gemini-format: build :streamGenerateContent / :generateContent path
     if (this.config.format === "gemini") {

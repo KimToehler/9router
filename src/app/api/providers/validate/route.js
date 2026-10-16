@@ -11,6 +11,7 @@ import {
   getNousApiKeyValidationError,
   isNousApiKeyAccepted,
 } from "open-sse/services/nous.js";
+import { buildAnthropicCompatibleMessagesUrl } from "open-sse/providers/shared.js";
 import { normalizeProviderId } from "@/lib/providerNormalization";
 
 // Probe a webSearch/webFetch provider using its searchConfig/fetchConfig.
@@ -161,12 +162,7 @@ export async function POST(request) {
           return NextResponse.json({ error: "Anthropic Compatible node not found" }, { status: 404 });
         }
 
-        let normalizedBase = node.baseUrl?.trim().replace(/\/$/, "") || "";
-        if (normalizedBase.endsWith("/messages")) {
-          normalizedBase = normalizedBase.slice(0, -9); // remove /messages
-        }
-
-        const messagesUrl = `${normalizedBase}/v1/messages`;
+        const messagesUrl = buildAnthropicCompatibleMessagesUrl(node.baseUrl);
         const model = node.defaultModel || "claude-3-haiku-20240307";
 
         const res = await fetch(messagesUrl, {
