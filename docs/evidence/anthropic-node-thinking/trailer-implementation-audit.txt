@@ -1,0 +1,13 @@
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-5.6-terra
+security_delta: no
+verdict: PASS
+adversarial_criteria:
+- invariant: Transport override remains limited to `anthropic-compatible-*`; an `openai-compatible-*` GLM-5.3 route retains existing Z.AI cannot-disable behavior.
+  positive_witness: OpenAI-to-OpenAI request with `reasoning_effort:"none"` on `openai-compatible-test` / `glm-5.3` emits Z.AI `thinking:{type:"enabled"}` plus `reasoning_effort:"low"`.
+  negative_control: A broad compatible-node predicate converts capability to `claude-budget`, causing OpenAI target fallback to emit disable-capable OpenAI reasoning instead of Z.AI's forced-enabled shape.
+  observable: Output `thinking`, `reasoning_effort`, and absence or presence of `budget_tokens` after `translateRequest`.
+  boundary: `getCapabilitiesForModel` transport predicate through `translateRequest` on OpenAI wire.
+END-REVIEW-TRAILER

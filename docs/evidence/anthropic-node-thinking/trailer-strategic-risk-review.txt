@@ -1,0 +1,13 @@
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: 1,2,3,4
+model_id: onara/cx/gpt-5.6-sol
+security_delta: no
+verdict: PASS
+adversarial_criteria:
+- invariant: Transport normalization must not manufacture reasoning support for an unknown non-reasoning model merely because its provider ID is anthropic-compatible.
+  positive_witness: An unknown text model with default reasoning false strips stray thinking controls and remains advertised as non-reasoning.
+  negative_control: A transport-wide override assigns claude-budget or reasoning support to every model, forwarding thinking fields for an unknown model.
+  observable: Published reasoning capability remains false and captured upstream JSON contains no thinking, reasoning_effort, enable_thinking, or thinking_budget field.
+  boundary: Capability resolution through outbound Anthropic Messages request preparation.
+END-REVIEW-TRAILER

@@ -1,0 +1,32 @@
+{
+  "schema": "omo.merge-gate/v2",
+  "plan": "docs/evidence/anthropic-node-thinking/plan.md",
+  "plan_sha256": "8cf5fcfd9931aaec60a78d31bd526009a4fbfedda16badf401d3311141e3f9c6",
+  "reviewed_sha": "7bc721042fdd6a108e164e08c744fd6361885a97",
+  "diff_base": "166c6c814120db3dd5df1bf9efd9123b808aee0c",
+  "reviewers_run": ["implementation-audit", "strategic-risk-review"],
+  "decision_reason": "Changes the upstream thinking wire shape for every model on dynamic anthropic-compatible nodes (wire-contract class): both reviewer invocations required and run cross-provider on code commit e1d827da; reviewed_sha 7bc72104 adds only docs/evidence/anthropic-node-thinking/ QA artifacts and review reports on top (git diff --name-only e1d827da 7bc72104 outside that dir: 0 files)",
+  "mandatory_class": "wire-contract-api",
+  "implementation_models": ["onara/cc/claude-opus-5-5"],
+  "qa": [
+    { "name": "RED: new contract tests fail on unmodified source (5 fail, 3 guards pass)", "passed": true, "artifact": "docs/evidence/anthropic-node-thinking/qa-red.txt" },
+    { "name": "Focused suites vs master: 0 pass->fail", "passed": true, "artifact": "docs/evidence/anthropic-node-thinking/qa-green-focused.txt" },
+    { "name": "Full vitest suite vs master: 0 pass->fail", "passed": true, "artifact": "docs/evidence/anthropic-node-thinking/qa-suite-diff.txt" },
+    { "name": "C1-C3 captured upstream body: disabled kept, budget 2048 kept, effort low/max -> budget 1024/126976, no reasoning_effort", "passed": true, "artifact": "docs/evidence/anthropic-node-thinking/qa-runtime-fix.txt" },
+    { "name": "C1-C3 negative control on master: Z.AI shape thinking enabled + reasoning_effort", "passed": true, "artifact": "docs/evidence/anthropic-node-thinking/qa-runtime-base.txt" },
+    { "name": "L1 live Bifrost disabled: no thinking block (master returns signed thinking)", "passed": true, "artifact": "docs/evidence/anthropic-node-thinking/qa-runtime-fix.txt" },
+    { "name": "L2 live Bifrost budget 1024: signed thinking block", "passed": true, "artifact": "docs/evidence/anthropic-node-thinking/qa-runtime-fix.txt" },
+    { "name": "L3 live OpenAI client effort low (stream): reasoning_content delivered", "passed": true, "artifact": "docs/evidence/anthropic-node-thinking/qa-runtime-fix.txt" },
+    { "name": "L4 live thinking + tool_use replay: turn 2 HTTP 200 end_turn", "passed": true, "artifact": "docs/evidence/anthropic-node-thinking/qa-runtime-fix.txt" }
+  ],
+  "whole_diff": { "run": false, "reason": "One source module (open-sse/providers/capabilities.js) plus tests and evidence; no cross-layer change" },
+  "resolution": [
+    { "invocation": "implementation-audit", "agent": "auditor", "model": "onara/cx/gpt-5.6-terra", "independence": "cross-provider" },
+    { "invocation": "strategic-risk-review", "agent": "oracle", "model": "onara/cx/gpt-5.6-sol", "independence": "cross-provider" }
+  ],
+  "verdicts": [
+    { "invocation": "implementation-audit", "verdict": "PASS", "trailer_artifact": "docs/evidence/anthropic-node-thinking/trailer-implementation-audit.txt", "trailer_sha256": "3ab30162dd1b71787ed3fbccdc2f9caf14750ab4cc728410e7a7099ecc26f203", "note": "No blockers; non-blocking: GLM-only live witness, no openai-compatible-* exclusion test. Full reply: docs/evidence/anthropic-node-thinking/implementation-audit.md" },
+    { "invocation": "strategic-risk-review", "verdict": "PASS", "trailer_artifact": "docs/evidence/anthropic-node-thinking/trailer-strategic-risk-review.txt", "trailer_sha256": "f9bda0e799bae5c4fc76d5ba965a64e80307c27fd54248f82236185e413fa31a", "note": "No blockers; rollout risk for non-GLM families behind Anthropic nodes. Full reply: docs/evidence/anthropic-node-thinking/strategic-risk-review.md" }
+  ],
+  "blockers": []
+}
