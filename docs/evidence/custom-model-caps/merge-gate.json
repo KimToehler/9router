@@ -1,11 +1,11 @@
 {
   "schema": "omo.merge-gate/v2",
   "plan": "docs/evidence/custom-model-caps/plan.md",
-  "plan_sha256": "54b14b1508214c60d16630305ff326b54b3fead83fb9d8479edcb6b459138c14",
-  "reviewed_sha": "5260551db3c9c002cd13da9ed33c49ce305016d5",
+  "plan_sha256": "4d98cc10ba4dcfaf7e8a7a6088eb02c80b6542493bd41b20ddf7ae10a8f49f10",
+  "reviewed_sha": "26ae52fed71ed61db0c7cb73cf33704f9d28da9b",
   "diff_base": "d0d9db98152d94b7f9f9825fc1b6f97a57c78307",
   "reviewers_run": ["implementation-audit"],
-  "decision_reason": "Real routing change across 4 layers with no auth, schema, wire-contract or concurrency class; cross-provider implementation-audit on the final head after an earlier audit FAIL (index key collision) was fixed",
+  "decision_reason": "Real routing change across 4 layers with no auth, schema, wire-contract or concurrency class; cross-provider implementation-audit on the rebased final head after an earlier audit FAIL (index key collision) was fixed",
   "mandatory_class": "none",
   "implementation_models": ["onara/cc/claude-opus-5-5"],
   "qa": [
@@ -14,17 +14,18 @@
     { "name": "Vision OFF again without restart", "passed": true, "artifact": "docs/evidence/custom-model-caps/qa-api.txt" },
     { "name": "Edge: PATCH unknown model 404, invalid caps 400", "passed": true, "artifact": "docs/evidence/custom-model-caps/qa-api.txt" },
     { "name": "Regression: text-only chat to bifrost/glm-5.3", "passed": true, "artifact": "docs/evidence/custom-model-caps/qa-api.txt" },
-    { "name": "Dashboard Vision switch persists and drives routing (standalone build)", "passed": true, "artifact": "docs/evidence/custom-model-caps/qa-dashboard-toggle.webp" }
+    { "name": "Dashboard Vision switch persists and drives routing (standalone build)", "passed": true, "artifact": "docs/evidence/custom-model-caps/qa-dashboard-toggle.webp" },
+    { "name": "Rebase onto 3deb1fc9: compose default host router.onara.eu, NINEROUTER_HOST override honoured", "passed": true, "artifact": "docs/evidence/custom-model-caps/qa-compose-config.txt" }
   ],
-  "whole_diff": { "run": true, "reason": "Reviewer passes CustomCapsReview (FAIL, module-local index -> fixed), CustomCapsReReview (PASS), PrefixSeatReview (PASS on e3da39e7); implementation-audit on d0fa346e FAIL (index key collision) -> fixed in 13362198, re-audited PASS" },
+  "whole_diff": { "run": true, "reason": "Reviewer passes CustomCapsReview (FAIL, module-local index -> fixed), CustomCapsReReview (PASS), PrefixSeatReview (PASS on e3da39e7); implementation-audit on d0fa346e FAIL (index key collision) -> fixed in 13362198/60c90e21; re-audited PASS on rebased 66d676d2" },
   "resolution": [
     { "invocation": "implementation-audit", "agent": "auditor", "model": "onara/cx/gpt-5.6-terra", "independence": "cross-provider" }
   ],
   "verdicts": [
-    { "invocation": "implementation-audit", "verdict": "PASS", "trailer_artifact": "docs/evidence/custom-model-caps/implementation-audit.md", "trailer_sha256": "4eb80f3d6dd027f47e2a19316c0eb938670e113fdfad608aeb0bf80d03f0fa21", "note": "No blockers on 13362198; prior collision class confirmed closed" }
+    { "invocation": "implementation-audit", "verdict": "PASS", "trailer_artifact": "docs/evidence/custom-model-caps/implementation-audit.md", "trailer_sha256": "8ab543abbf1ea62bfa249b67c7596621906e56a52e7ac6e76618588e6ef367f4", "note": "No blockers on rebased 66d676d2; prior collision class confirmed closed; compose change reviewed" }
   ],
   "blockers": [
     { "id": "B1", "severity": "high", "location": "src/lib/customModelCaps.js:13", "coverage": "tests/unit/custom-model-caps-store.test.js::a reload from another module copy reaches the installed reader", "fix_sha": "b6d26e407d4189dd60eda0592a3b9d5cfc820609" },
-    { "id": "B2", "severity": "high", "location": "src/lib/customModelCaps.js:50", "coverage": "tests/unit/custom-model-caps-store.test.js::keeps (provider, model) pairs apart when an id contains the separator", "fix_sha": "13362198a72557745a5bb64bdab0faa021048242" }
+    { "id": "B2", "severity": "high", "location": "src/lib/customModelCaps.js:50", "coverage": "tests/unit/custom-model-caps-store.test.js::keeps (provider, model) pairs apart when an id contains the separator", "fix_sha": "60c90e214698023794a267afa199985aa5a7a1d1" }
   ]
 }
