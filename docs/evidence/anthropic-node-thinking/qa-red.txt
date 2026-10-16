@@ -1,0 +1,26 @@
+     × Claude client: thinking disabled reaches the upstream as disabled 6ms
+     × Claude client: an explicit budget passes through unchanged 1ms
+     × OpenAI client: effort becomes a budget, higher effort a larger one 1ms
+     × replays a signed thinking block before its tool_use on the next turn 1ms
+     × offers the Anthropic budget levels in the picker, including none 0ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  unit/anthropic-compatible-thinking-contract.test.js > anthropic-compatible node: Anthropic thinking contract for glm-5.3 > Claude client: thinking disabled reaches the upstream as disabled
+AssertionError: expected { type: 'enabled' } to deeply equal { type: 'disabled' }
+- Expected
++ Received
+ FAIL  unit/anthropic-compatible-thinking-contract.test.js > anthropic-compatible node: Anthropic thinking contract for glm-5.3 > Claude client: an explicit budget passes through unchanged
+AssertionError: expected { type: 'enabled' } to deeply equal { Object (type, budget_tokens) }
+- Expected
++ Received
+ FAIL  unit/anthropic-compatible-thinking-contract.test.js > anthropic-compatible node: Anthropic thinking contract for glm-5.3 > OpenAI client: effort becomes a budget, higher effort a larger one
+TypeError: actual value must be number or bigint, received "undefined"
+ FAIL  unit/anthropic-compatible-thinking-contract.test.js > anthropic-compatible node: Anthropic thinking contract for glm-5.3 > replays a signed thinking block before its tool_use on the next turn
+AssertionError: expected { type: 'enabled' } to deeply equal { Object (type, budget_tokens) }
+- Expected
++ Received
+ FAIL  unit/anthropic-compatible-thinking-contract.test.js > anthropic-compatible node: Anthropic thinking contract for glm-5.3 > offers the Anthropic budget levels in the picker, including none
+AssertionError: expected [ 'thinking' ] to deeply equal [ 'none', 'low', 'medium', …(3) ]
+- Expected
++ Received
+ Test Files  1 failed (1)
+      Tests  5 failed | 3 passed (8)

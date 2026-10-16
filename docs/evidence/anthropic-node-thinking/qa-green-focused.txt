@@ -1,0 +1,16 @@
+# focused set: unit/{anthropic-compatible-thinking-contract,glm53-thinking-cannot-disable,custom-model-caps,custom-model-caps-store,claude-opus-5-5,opencode-go-claude-haiku-55-thinking,minimax-code}.test.js + translator/
+# base = master 166c6c81 (baseline worktree), fix = worktree with fix; failures are identical pre-existing ones
+base: 622 tests, 384 passed, 164 failed
+fix:  630 tests, 392 passed, 164 failed
+new in fix: 8
+  + unit/anthropic-compatible-thinking-contract.test.js :: anthropic-compatible node: Anthropic thinking contract for glm-5.3 Claude client: thinking disabled reaches the upstream as disabled [passed]
+  + unit/anthropic-compatible-thinking-contract.test.js :: anthropic-compatible node: Anthropic thinking contract for glm-5.3 Claude client: an explicit budget passes through unchanged [passed]
+  + unit/anthropic-compatible-thinking-contract.test.js :: anthropic-compatible node: Anthropic thinking contract for glm-5.3 OpenAI client: effort becomes a budget, higher effort a larger one [passed]
+  + unit/anthropic-compatible-thinking-contract.test.js :: anthropic-compatible node: Anthropic thinking contract for glm-5.3 replays a signed thinking block before its tool_use on the next turn [passed]
+  + unit/anthropic-compatible-thinking-contract.test.js :: anthropic-compatible node: Anthropic thinking contract for glm-5.3 offers the Anthropic budget levels in the picker, including none [passed]
+  + unit/anthropic-compatible-thinking-contract.test.js :: guards: contracts that must not move native z.ai OpenAI transport keeps thinking enabled + reasoning_effort [passed]
+  + unit/anthropic-compatible-thinking-contract.test.js :: guards: contracts that must not move native z.ai Anthropic transport never disables GLM-5.3 thinking (#4409) [passed]
+  + unit/anthropic-compatible-thinking-contract.test.js :: guards: contracts that must not move a Claude model on a node keeps its Claude-native adaptive contract [passed]
+fail->pass: 0
+pass->fail: 0
+exit=0

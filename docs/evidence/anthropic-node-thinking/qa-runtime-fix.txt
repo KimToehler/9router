@@ -1,0 +1,13 @@
+# Runtime smoke, fix server: next dev --webpack :20191 from worktree at e1d827da2a33290ba43e1611253bd1affe9b9602 (branch fix/anthropic-node-thinking-contract)
+# client: urllib, User-Agent 9r-smoke, requireApiKey=false, ENABLE_REQUEST_LOGS=false
+# cap2/glm-5.3 -> anthropic-compatible node, baseUrl http://127.0.0.1:20193/v1 (capture server records the upstream JSON body)
+# bfx/glm-5.3  -> anthropic-compatible node, baseUrl https://bifrost.yorizon-prod.ai.advisori-apps.de/api/v1 (live)
+C1 /v1/messages thinking disabled: client HTTP 200; upstream calls 1; upstream body fields {"thinking": {"type": "disabled"}, "max_tokens": 4096}
+C2 /v1/messages budget 2048: client HTTP 200; upstream calls 1; upstream body fields {"thinking": {"type": "enabled", "budget_tokens": 2048}, "max_tokens": 4096}
+C3a /v1/chat/completions effort low: client HTTP 200; upstream calls 1; upstream body fields {"thinking": {"type": "enabled", "budget_tokens": 1024, "display": "summarized"}, "max_tokens": 64000}
+C3b /v1/chat/completions effort max: client HTTP 200; upstream calls 1; upstream body fields {"thinking": {"type": "enabled", "budget_tokens": 126976, "display": "summarized"}, "max_tokens": 128000}
+L1 /v1/messages bfx/glm-5.3 thinking disabled: HTTP 200; blocks ['text']; thinking block present=False; signed thinking=False; stop_reason=end_turn
+L2 /v1/messages bfx/glm-5.3 budget 1024: HTTP 200; blocks [('thinking', 'sig'), 'text']; thinking block present=True; signed thinking=True; stop_reason=end_turn
+L4 replay: turn1 HTTP 200 blocks [('thinking', 'sig'), 'tool_use'] (attempt 1); turn2 HTTP 200; blocks [('thinking', 'sig'), 'text']; stop_reason=end_turn
+L3 /v1/chat/completions bfx/glm-5.3 effort low, stream:true: HTTP 200; reasoning_content chars=130; content chars=316
+L3n /v1/chat/completions effort low, stream:false: HTTP 200; reasoning_content chars=0; message keys=['content', 'role'] (non-stream drops reasoning_content whenever content is non-empty: open-sse/handlers/chatCore/nonStreamingHandler.js:319-325, unchanged by this fix)

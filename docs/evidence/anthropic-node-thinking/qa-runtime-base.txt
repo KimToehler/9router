@@ -1,0 +1,11 @@
+# Runtime smoke, baseline server: next dev --webpack :20192 from detached master 166c6c81
+# client: urllib, User-Agent 9r-smoke, requireApiKey=false, ENABLE_REQUEST_LOGS=false
+# cap2/glm-5.3 -> anthropic-compatible node, baseUrl http://127.0.0.1:20193/v1 (capture server records the upstream JSON body)
+# bfx/glm-5.3  -> anthropic-compatible node, baseUrl https://bifrost.yorizon-prod.ai.advisori-apps.de/api/v1 (live)
+C1 /v1/messages thinking disabled: client HTTP 200; upstream calls 1; upstream body fields {"thinking": {"type": "enabled"}, "reasoning_effort": "low", "max_tokens": 4096}
+C2 /v1/messages budget 2048: client HTTP 200; upstream calls 1; upstream body fields {"thinking": {"type": "enabled"}, "reasoning_effort": "low", "max_tokens": 4096}
+C3a /v1/chat/completions effort low: client HTTP 200; upstream calls 1; upstream body fields {"thinking": {"type": "enabled"}, "reasoning_effort": "low", "max_tokens": 64000}
+C3b /v1/chat/completions effort max: client HTTP 200; upstream calls 1; upstream body fields {"thinking": {"type": "enabled"}, "reasoning_effort": "max", "max_tokens": 64000}
+L1 /v1/messages bfx/glm-5.3 thinking disabled: HTTP 200; blocks [('thinking', 'sig'), 'text']; thinking block present=True; signed thinking=True; stop_reason=end_turn
+L3 /v1/chat/completions bfx/glm-5.3 effort low, stream:true: HTTP 200; reasoning_content chars=117; content chars=482
+L3n /v1/chat/completions effort low, stream:false: HTTP 200; reasoning_content chars=0; message keys=['content', 'role'] (non-stream drops reasoning_content whenever content is non-empty: open-sse/handlers/chatCore/nonStreamingHandler.js:319-325, unchanged by this fix)
