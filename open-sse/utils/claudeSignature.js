@@ -33,67 +33,67 @@ function skipVarint(buf, pos, end) {
   return -1;
 }
 
-function readVarint(buf, pos, end) {
+// Reads the varint at cursor.pos into cursor.value and advances cursor.pos.
+// Returns false if it runs past `end`. Mutates one cursor per scan instead of
+// allocating per field: signatures come from untrusted request bodies.
+function readVarint(buf, cursor, end) {
   let value = 0;
   let scale = 1;
-  for (let i = 0; i < 10 && pos < end; i++) {
-    const byte = buf[pos++];
+  for (let i = 0; i < 10 && cursor.pos < end; i++) {
+    const byte = buf[cursor.pos++];
     value += (byte & 0x7f) * scale;
-    if ((byte & 0x80) === 0) return { value, pos };
+    if ((byte & 0x80) === 0) {
+      cursor.value = value;
+      return true;
+    }
     scale *= 128;
   }
-  return null;
+  return false;
 }
 
-// Parses buf[start, end) as protobuf fields. Returns null unless the whole range
-// is a well-formed field sequence; length-delimited fields are returned as
-// [start, end) ranges so callers can descend without copying.
-function parseFields(buf, start, end) {
-  const fields = [];
-  let pos = start;
-  while (pos < end) {
-    const key = readVarint(buf, pos, end);
-    if (!key) return null;
-    const number = Math.floor(key.value / 8);
-    const wireType = key.value % 8;
+// Scans buf[start, end) as a protobuf field sequence in O(1) memory.
+// Returns null unless the whole range is well-formed and field `wanted` occurs
+// at most once, as a length-delimited field. Otherwise returns that field's
+// [start, end) range, or an empty object when it is absent.
+function scanFields(buf, start, end, wanted) {
+  const cursor = { pos: start, value: 0 };
+  let match = {};
+  let seen = false;
+  while (cursor.pos < end) {
+    if (!readVarint(buf, cursor, end)) return null;
+    const number = Math.floor(cursor.value / 8);
+    const wireType = cursor.value % 8;
     if (number === 0) return null;
-    pos = key.pos;
+    if (number === wanted) {
+      if (seen || wireType !== WIRE_BYTES) return null;
+      seen = true;
+    }
     if (wireType === WIRE_VARINT) {
-      pos = skipVarint(buf, pos, end);
-      if (pos < 0) return null;
-      fields.push({ number, wireType });
+      cursor.pos = skipVarint(buf, cursor.pos, end);
+      if (cursor.pos < 0) return null;
     } else if (wireType === WIRE_BYTES) {
-      const len = readVarint(buf, pos, end);
-      if (!len || len.pos + len.value > end) return null;
-      fields.push({ number, wireType, start: len.pos, end: len.pos + len.value });
-      pos = len.pos + len.value;
+      if (!readVarint(buf, cursor, end) || cursor.pos + cursor.value > end) return null;
+      if (number === wanted) match = { start: cursor.pos, end: cursor.pos + cursor.value };
+      cursor.pos += cursor.value;
     } else if (wireType === WIRE_FIXED64 || wireType === WIRE_FIXED32) {
-      pos += wireType === WIRE_FIXED64 ? 8 : 4;
-      if (pos > end) return null;
-      fields.push({ number, wireType });
+      cursor.pos += wireType === WIRE_FIXED64 ? 8 : 4;
+      if (cursor.pos > end) return null;
     } else {
       return null;
     }
   }
-  return fields;
-}
-
-function singleBytesField(fields, number) {
-  const matches = fields.filter(f => f.number === number);
-  return matches.length === 1 && matches[0].wireType === WIRE_BYTES ? matches[0] : null;
+  return match;
 }
 
 // envelope → exactly one container (field 2) → exactly one non-empty channel
 // block (field 1) → channel block itself is a protobuf message.
 function isClaudeCaisPayload(decoded) {
   if (decoded[0] !== CLAUDE_CAIS_MARKER) return false;
-  const envelope = parseFields(decoded, 0, decoded.length);
-  const container = envelope && singleBytesField(envelope, 2);
-  if (!container) return false;
-  const containerFields = parseFields(decoded, container.start, container.end);
-  const channel = containerFields && singleBytesField(containerFields, 1);
-  if (!channel || channel.end === channel.start) return false;
-  return parseFields(decoded, channel.start, channel.end) !== null;
+  const container = scanFields(decoded, 0, decoded.length, 2);
+  if (!container?.end) return false;
+  const channel = scanFields(decoded, container.start, container.end, 1);
+  if (!channel?.end || channel.end === channel.start) return false;
+  return scanFields(decoded, channel.start, channel.end, 0) !== null;
 }
 
 // Strict-ish: validates base64 layers + Claude marker byte (E/R) or envelope structure (C).

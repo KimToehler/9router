@@ -68,4 +68,18 @@ describe("Claude CAIS/CAQS thinking signatures", () => {
     const out = normalizeClaudePassthrough(history({ ...block }), "claude-sonnet-5-5");
     expect(out.messages[1].content[0]).toEqual(block);
   });
+
+  it("rejects a field-dense signature near the size limit without per-field allocation", () => {
+    // 08 04 then ~12M empty varint fields (18 00) and no container: ~32 MB of base64.
+    const bytes = Buffer.alloc(2 + 12_000_000 * 2);
+    bytes[0] = 0x08;
+    bytes[1] = 0x04;
+    for (let i = 2; i < bytes.length; i += 2) bytes[i] = 0x18;
+    const signature = bytes.toString("base64");
+    const heapBefore = process.memoryUsage().heapUsed;
+    const out = normalizeClaudePassthrough(history({ type: "thinking", thinking: "dense", signature }), "claude-sonnet-5-5");
+    const heapGrowth = process.memoryUsage().heapUsed - heapBefore;
+    expect(out.messages[1].content[0].signature).toBe(DEFAULT_THINKING_CLAUDE_SIGNATURE);
+    expect(heapGrowth).toBeLessThan(64 * 1024 * 1024);
+  });
 });
