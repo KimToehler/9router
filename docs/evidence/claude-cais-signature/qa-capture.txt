@@ -1,0 +1,6 @@
+# Capture probe: POST /v1/messages, User-Agent claude-cli/2.1.0, model cap/claude-sonnet-5-5 (anthropic-compatible node -> local capture upstream 127.0.0.1:20190)
+# Request history: assistant [thinking(real CAQS signature, 928 chars), tool_use toolu_01] + user tool_result; thinking {type: adaptive}
+# Columns: server | HTTP | upstream assistant[1] blocks (type, signature prefix, signature byte-identical to input, thinking prefix)
+fix  (fix/claude-c-signature, :20127) | 200 | [["thinking", "CAQSsAUKEAgT", true, "I should start by looking over"], ["tool_use", "", false, ""]]
+base (master a27f9ae0, :20126) | 200 | [["tool_use", "", false, ""]]
+# upstream thinking field: fix={"type": "adaptive"} base={"type": "adaptive"}

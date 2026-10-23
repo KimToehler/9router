@@ -1,0 +1,8 @@
+     × passthrough keeps a real C-form thinking block byte-identical 5ms
+     × translated claude path keeps a real C-form thinking block 14ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  unit/claude-cais-signature.test.js > Claude CAIS/CAQS thinking signatures > passthrough keeps a real C-form thinking block byte-identical
+AssertionError: expected [ { type: 'thinking', …(2) }, …(1) ] to deeply equal [ { type: 'thinking', …(2) }, …(1) ]
+ FAIL  unit/claude-cais-signature.test.js > Claude CAIS/CAQS thinking signatures > translated claude path keeps a real C-form thinking block
+AssertionError: expected 'EpwGCkYIChgCKkCzVUuRrg7CcglSUWEef4rH6…' to be 'CAQSsAUKEAgTGAI4AUIIdGhpbmtpbmcSDL3rw…' // Object.is equality
+      Tests  2 failed | 7 passed (9)

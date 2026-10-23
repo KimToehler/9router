@@ -1,0 +1,26 @@
+ ✓ unit/claude-foreign-server-tool-use.test.js > normalizeClaudePassthrough — foreign server_tool_use ids > drops a server_tool_use block whose id is not an srvtoolu_ id
+ ✓ unit/claude-foreign-server-tool-use.test.js > normalizeClaudePassthrough — foreign server_tool_use ids > drops the paired tool_result so no orphan reference is left behind
+ ✓ unit/claude-foreign-server-tool-use.test.js > normalizeClaudePassthrough — foreign server_tool_use ids > keeps a well-formed Anthropic server_tool_use block
+ ✓ unit/claude-foreign-server-tool-use.test.js > normalizeClaudePassthrough — foreign server_tool_use ids > keeps regular tool_use blocks, whatever their id looks like
+ ✓ unit/claude-foreign-server-tool-use.test.js > normalizeClaudePassthrough — foreign server_tool_use ids > drops a message whose blocks were all stripped instead of padding it with empty text
+ ✓ unit/claude-foreign-server-tool-use.test.js > normalizeClaudePassthrough — foreign server_tool_use ids > strips empty text blocks a client put in the history (Anthropic 400s them)
+ ✓ unit/claude-foreign-server-tool-use.test.js > normalizeClaudePassthrough — foreign server_tool_use ids > drops a message whose content is a single empty text block
+ ✓ unit/claude-foreign-server-tool-use.test.js > normalizeClaudePassthrough — foreign server_tool_use ids > drops a message whose string content is empty
+ ✓ unit/claude-empty-thinking-block.test.js > normalizeClaudePassthrough — blank thinking blocks > drops an empty thinking block and keeps its sibling text block
+ ✓ unit/claude-empty-thinking-block.test.js > normalizeClaudePassthrough — blank thinking blocks > drops a whitespace-only thinking block
+ ✓ unit/claude-empty-thinking-block.test.js > normalizeClaudePassthrough — blank thinking blocks > drops the whole message when the blank thinking block was its only content
+ ✓ unit/claude-empty-thinking-block.test.js > normalizeClaudePassthrough — blank thinking blocks > keeps a thinking block that has visible text
+ ✓ unit/claude-empty-thinking-block.test.js > prepareClaudeRequest — blank thinking blocks (deepSeekServed via opencode-go) > drops a blank thinking block but keeps its sibling text block
+ ✓ unit/claude-empty-thinking-block.test.js > prepareClaudeRequest — blank thinking blocks (deepSeekServed via opencode-go) > keeps a signed thinking block that has visible text (deepSeekServed keeps thinking)
+ ✓ unit/claude-empty-thinking-block.test.js > prepareClaudeRequest — blank thinking blocks (deepSeekServed via opencode-go) > drops a blank thinking block on the plain deepseek provider too
+ ✓ unit/claude-cais-signature.test.js > Claude CAIS/CAQS thinking signatures > passthrough keeps a real C-form thinking block byte-identical
+ ✓ unit/claude-cais-signature.test.js > Claude CAIS/CAQS thinking signatures > translated claude path keeps a real C-form thinking block
+ ✓ unit/claude-cais-signature.test.js > Claude CAIS/CAQS thinking signatures > drops a foreign signature: Gemini CLI default (also C-prefixed)
+ ✓ unit/claude-cais-signature.test.js > Claude CAIS/CAQS thinking signatures > drops a foreign signature: random base64 starting with C
+ ✓ unit/claude-cais-signature.test.js > Claude CAIS/CAQS thinking signatures > drops a foreign signature: 0x08 envelope without container
+ ✓ unit/claude-cais-signature.test.js > Claude CAIS/CAQS thinking signatures > drops a foreign signature: 0x08 envelope whose container is not protobuf
+ ✓ unit/claude-cais-signature.test.js > Claude CAIS/CAQS thinking signatures > drops a foreign signature: real signature truncated
+ ✓ unit/claude-cais-signature.test.js > Claude CAIS/CAQS thinking signatures > keeps legacy E-form signatures
+ ✓ unit/claude-cais-signature.test.js > Claude CAIS/CAQS thinking signatures > keeps legacy R-form signatures
+ Test Files  3 passed (3)
+      Tests  24 passed (24)

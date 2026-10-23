@@ -1,0 +1,14 @@
+# Live probe: real Anthropic (claude OAuth connection, Max subscription), local 9router dev servers
+# POST /v1/messages, stream=true, User-Agent claude-cli/2.1.0, model cc/claude-sonnet-5-5,
+# thinking {type: adaptive, display: summarized}, output_config.effort max, one tool (calc).
+# Turn 2 = turn-1 prompt + assistant content returned in turn 1 (unchanged) + tool_result.
+# base = master a27f9ae0 (:20126), fix = fix/claude-c-signature working tree (:20127).
+# billed_input = input_tokens + cache_read_input_tokens + cache_creation_input_tokens
+
+label | t1 http | t1 types | t1 thinking_tokens | t1 output_tokens | t1 sig prefix | t1 billed_input | t2 http | t2 billed_input | delta
+base | 200 | thinking,text,tool_use | 21267 | 22279 | CAQS5K | 502 | 200 | 1522 | 1020
+fix | 200 | thinking,text,tool_use | 27828 | 28725 | CAQSje | 502 | 200 | 29235 | 28733
+
+# raw summaries (script stdout)
+{"label": "base", "model": "cc/claude-sonnet-5-5", "turn1": {"http": 200, "types": ["thinking", "text", "tool_use"], "usage": {"input_tokens": 502, "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0, "cache_creation": {"ephemeral_5m_input_tokens": 0, "ephemeral_1h_input_tokens": 0}, "output_tokens": 22279, "service_tier": "standard", "inference_geo": "global", "speed": "standard", "output_tokens_details": {"thinking_tokens": 21267}}, "billed_input": 502, "thinking_chars": 16067, "signature_prefix": ["CAQS5K"]}, "turn2": {"http": 200, "types": ["thinking", "text"], "usage": {"input_tokens": 2, "cache_creation_input_tokens": 1520, "cache_read_input_tokens": 0, "cache_creation": {"ephemeral_5m_input_tokens": 1520, "ephemeral_1h_input_tokens": 0}, "output_tokens": 9718, "service_tier": "standard", "inference_geo": "global", "speed": "standard", "output_tokens_details": {"thinking_tokens": 9101}}, "billed_input": 1522, "error": null}, "delta_billed_input": 1020, "turn1_output_tokens": 22279}
+{"label": "fix", "model": "cc/claude-sonnet-5-5", "turn1": {"http": 200, "types": ["thinking", "text", "tool_use"], "usage": {"input_tokens": 502, "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0, "cache_creation": {"ephemeral_5m_input_tokens": 0, "ephemeral_1h_input_tokens": 0}, "output_tokens": 28725, "service_tier": "standard", "inference_geo": "global", "speed": "standard", "output_tokens_details": {"thinking_tokens": 27828}}, "billed_input": 502, "thinking_chars": 16427, "signature_prefix": ["CAQSje"]}, "turn2": {"http": 200, "types": ["thinking", "text"], "usage": {"input_tokens": 2, "cache_creation_input_tokens": 29233, "cache_read_input_tokens": 0, "cache_creation": {"ephemeral_5m_input_tokens": 29233, "ephemeral_1h_input_tokens": 0}, "output_tokens": 1154, "service_tier": "standard", "inference_geo": "global", "speed": "standard", "output_tokens_details": {"thinking_tokens": 675}}, "billed_input": 29235, "error": null}, "delta_billed_input": 28733, "turn1_output_tokens": 28725}
