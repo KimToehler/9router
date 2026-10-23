@@ -1,0 +1,32 @@
+# F2 wave 2 B1 (consumer family): tests/unit/claude-cais-signature.test.js
+## RED: claude.js at 2a9eae97 (signature check only, no target-model check)
+ ✓ unit/claude-cais-signature.test.js > Claude CAIS/CAQS thinking signatures > passthrough keeps a real C-form thinking block byte-identical
+ ✓ unit/claude-cais-signature.test.js > Claude CAIS/CAQS thinking signatures > translated claude path keeps a real C-form thinking block
+ ✓ unit/claude-cais-signature.test.js > Claude CAIS/CAQS thinking signatures > passthrough to a Claude model behind an anthropic-compatible gateway keeps the real block
+ × unit/claude-cais-signature.test.js > Claude CAIS/CAQS thinking signatures > passthrough to a non-Claude model drops Claude's C-form thinking
+ × unit/claude-cais-signature.test.js > Claude CAIS/CAQS thinking signatures > passthrough to a non-Claude model drops Claude's E-form thinking
+ ✓ unit/claude-cais-signature.test.js > Claude CAIS/CAQS thinking signatures > drops a foreign signature: Gemini CLI default (also C-prefixed)
+ ✓ unit/claude-cais-signature.test.js > Claude CAIS/CAQS thinking signatures > drops a foreign signature: random base64 starting with C
+ ✓ unit/claude-cais-signature.test.js > Claude CAIS/CAQS thinking signatures > drops a foreign signature: 0x08 envelope without container
+ ✓ unit/claude-cais-signature.test.js > Claude CAIS/CAQS thinking signatures > drops a foreign signature: 0x08 envelope whose container is not protobuf
+ ✓ unit/claude-cais-signature.test.js > Claude CAIS/CAQS thinking signatures > drops a foreign signature: real signature truncated
+ ✓ unit/claude-cais-signature.test.js > Claude CAIS/CAQS thinking signatures > keeps legacy E-form signatures
+ ✓ unit/claude-cais-signature.test.js > Claude CAIS/CAQS thinking signatures > keeps legacy R-form signatures
+ ✓ unit/claude-cais-signature.test.js > Claude CAIS/CAQS thinking signatures > rejects a field-dense signature near the size limit without per-field allocation
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  2 failed | 11 passed (13)
+## GREEN: consumer-aware step 5 (isClaudeModel(model) && isValidClaudeSignature)
+ ✓ unit/claude-cais-signature.test.js > Claude CAIS/CAQS thinking signatures > passthrough keeps a real C-form thinking block byte-identical
+ ✓ unit/claude-cais-signature.test.js > Claude CAIS/CAQS thinking signatures > translated claude path keeps a real C-form thinking block
+ ✓ unit/claude-cais-signature.test.js > Claude CAIS/CAQS thinking signatures > passthrough to a Claude model behind an anthropic-compatible gateway keeps the real block
+ ✓ unit/claude-cais-signature.test.js > Claude CAIS/CAQS thinking signatures > passthrough to a non-Claude model drops Claude's C-form thinking
+ ✓ unit/claude-cais-signature.test.js > Claude CAIS/CAQS thinking signatures > passthrough to a non-Claude model drops Claude's E-form thinking
+ ✓ unit/claude-cais-signature.test.js > Claude CAIS/CAQS thinking signatures > drops a foreign signature: Gemini CLI default (also C-prefixed)
+ ✓ unit/claude-cais-signature.test.js > Claude CAIS/CAQS thinking signatures > drops a foreign signature: random base64 starting with C
+ ✓ unit/claude-cais-signature.test.js > Claude CAIS/CAQS thinking signatures > drops a foreign signature: 0x08 envelope without container
+ ✓ unit/claude-cais-signature.test.js > Claude CAIS/CAQS thinking signatures > drops a foreign signature: 0x08 envelope whose container is not protobuf
+ ✓ unit/claude-cais-signature.test.js > Claude CAIS/CAQS thinking signatures > drops a foreign signature: real signature truncated
+ ✓ unit/claude-cais-signature.test.js > Claude CAIS/CAQS thinking signatures > keeps legacy E-form signatures
+ ✓ unit/claude-cais-signature.test.js > Claude CAIS/CAQS thinking signatures > keeps legacy R-form signatures
+ ✓ unit/claude-cais-signature.test.js > Claude CAIS/CAQS thinking signatures > rejects a field-dense signature near the size limit without per-field allocation
+      Tests  13 passed (13)

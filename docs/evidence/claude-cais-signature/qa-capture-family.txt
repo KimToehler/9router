@@ -1,0 +1,7 @@
+# F2 wave 2 B1 (consumer family): POST /v1/messages, User-Agent claude-cli/2.1.0, anthropic-compatible node 'cap' -> local capture upstream
+# History: assistant [thinking(real CAQS signature, 928 chars), tool_use toolu_01] + user tool_result; thinking {type: adaptive}
+# Columns: server | requested model | HTTP | upstream model | upstream assistant[1] blocks (type, signature prefix, signature byte-identical, thinking prefix)
+fix | cap/claude-sonnet-5-5 | 200 | upstream model claude-sonnet-5-5 | [["thinking", "CAQSsAUKEAgT", true, "I should start by looking over"], ["tool_use", "", false, ""]]
+fix | cap/glm-5.3 | 200 | upstream model glm-5.3 | [["tool_use", "", false, ""]]
+base (master a27f9ae0) | cap/claude-sonnet-5-5 | 200 | upstream model claude-sonnet-5-5 | [["tool_use", "", false, ""]]
+base (master a27f9ae0) | cap/glm-5.3 | 200 | upstream model glm-5.3 | [["tool_use", "", false, ""]]
