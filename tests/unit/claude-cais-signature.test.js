@@ -47,6 +47,23 @@ describe("Claude CAIS/CAQS thinking signatures", () => {
     expect(thinking.thinking).toBe(REAL_THINKING);
   });
 
+  it("passthrough to a Claude model behind an anthropic-compatible gateway keeps the real block", () => {
+    const original = realBlock();
+    const out = normalizeClaudePassthrough(history(realBlock()), "anthropic/claude-opus-5-5");
+    expect(out.messages[1].content).toEqual([original, toolUse]);
+  });
+
+  it.each([
+    ["C-form", REAL_CAQS_SIGNATURE],
+    ["E-form", DEFAULT_THINKING_CLAUDE_SIGNATURE],
+  ])("passthrough to a non-Claude model drops Claude's %s thinking", (_label, signature) => {
+    const out = normalizeClaudePassthrough(history({ type: "thinking", thinking: REAL_THINKING, signature }), "glm-5.3");
+    const content = out.messages[1].content;
+    expect(content.some(b => b.thinking === REAL_THINKING)).toBe(false);
+    expect(content.some(b => b.signature === REAL_CAQS_SIGNATURE)).toBe(false);
+    expect(content.at(-1)).toEqual(toolUse);
+  });
+
   it.each([
     ["Gemini CLI default (also C-prefixed)", DEFAULT_THINKING_GEMINI_CLI_SIGNATURE],
     ["random base64 starting with C", "CwtPtKDlJUsU0DlodR0cVa1iIbzNu5/41k9ByX9Qkjg="],

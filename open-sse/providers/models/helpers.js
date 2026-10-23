@@ -37,6 +37,13 @@ export function isDeepSeekModel(modelId) {
   return /^deepseek-/i.test(base);
 }
 
+// Claude family by name, also behind gateways ("anthropic/claude-…", "cc/claude-…").
+// Thinking signatures are family-bound: only a Claude upstream accepts Claude's.
+export function isClaudeModel(modelId) {
+  if (!modelId || typeof modelId !== "string") return false;
+  return /claude/i.test(modelId);
+}
+
 // OpenCode Zen free-tier ids all carry the "-free" suffix (e.g.
 // "mimo-v2.6-flash-free", "muse-spark-1.3-contributor-free"). Upstream gates
 // these behind the attested free-tier identity even on the keyed lane, so the
