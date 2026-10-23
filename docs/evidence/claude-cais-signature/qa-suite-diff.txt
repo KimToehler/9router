@@ -1,12 +1,14 @@
-base {"passed": 3607, "failed": 239, "skipped": 98, "todo": 1} fix {"passed": 3620, "failed": 239, "skipped": 98, "todo": 1}
+base {"passed": 3607, "failed": 239, "skipped": 98, "todo": 1} fix {"passed": 3622, "failed": 239, "skipped": 98, "todo": 1}
 pass->fail: 0
 fail->pass: 0
-new in fix: 13
+new in fix: 15
   unit/claude-cais-signature.test.js :: Claude CAIS/CAQS thinking signatures passthrough keeps a real C-form thinking block byte-identical = passed
   unit/claude-cais-signature.test.js :: Claude CAIS/CAQS thinking signatures translated claude path keeps a real C-form thinking block = passed
   unit/claude-cais-signature.test.js :: Claude CAIS/CAQS thinking signatures passthrough to a Claude model behind an anthropic-compatible gateway keeps the real block = passed
-  unit/claude-cais-signature.test.js :: Claude CAIS/CAQS thinking signatures passthrough to a non-Claude model drops Claude's C-form thinking = passed
-  unit/claude-cais-signature.test.js :: Claude CAIS/CAQS thinking signatures passthrough to a non-Claude model drops Claude's E-form thinking = passed
+  unit/claude-cais-signature.test.js :: Claude CAIS/CAQS thinking signatures passthrough drops Claude's 'C-form' thinking for non-Claude target 'glm-5.3' = passed
+  unit/claude-cais-signature.test.js :: Claude CAIS/CAQS thinking signatures passthrough drops Claude's 'E-form' thinking for non-Claude target 'glm-5.3' = passed
+  unit/claude-cais-signature.test.js :: Claude CAIS/CAQS thinking signatures passthrough drops Claude's 'C-form' thinking for non-Claude target 'claude-gw/glm-5.3' = passed
+  unit/claude-cais-signature.test.js :: Claude CAIS/CAQS thinking signatures passthrough drops Claude's 'C-form' thinking for non-Claude target 'mimo-v2.5-pro-claude' = passed
   unit/claude-cais-signature.test.js :: Claude CAIS/CAQS thinking signatures drops a foreign signature: Gemini CLI default (also C-prefixed) = passed
   unit/claude-cais-signature.test.js :: Claude CAIS/CAQS thinking signatures drops a foreign signature: random base64 starting with C = passed
   unit/claude-cais-signature.test.js :: Claude CAIS/CAQS thinking signatures drops a foreign signature: 0x08 envelope without container = passed
