@@ -1,0 +1,14 @@
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-5.6-terra
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: A C-form envelope with two container fields must not be interpreted by selecting either container.
+  positive_witness: A valid single-container C-form signature is retained, while the same envelope with a second container is rejected.
+  negative_control: A parser that silently accepts the first or last of two container fields must fail the duplicate-container case.
+  observable: The normalized assistant content retains the valid block but omits the duplicated-container block.
+  boundary: normalizeClaudePassthrough on a Claude target
+END-REVIEW-TRAILER

@@ -1,0 +1,14 @@
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: 1,2,3,4
+model_id: onara/cx/gpt-5.6-sol
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: Every combo attempt must receive an independent replay history, so filtering signed thinking for one target family cannot alter what a later fallback attempt evaluates.
+  positive_witness: In a non-Claude-to-Claude fallback, the first upstream body omits the prior signed block while the later Claude body carries the original thinking and signature byte-identically.
+  negative_control: Reusing the same mutable message body lets the first non-Claude normalization remove the block, causing the later Claude attempt to lose reasoning continuity.
+  observable: Per-attempt captured upstream assistant content, including thinking text and byte-for-byte signature equality.
+  boundary: open-sse/services/combo.js::cloneRequestBody before open-sse/handlers/chatCore.js::handleChatCore and open-sse/translator/formats/claude.js::normalizeClaudePassthrough
+END-REVIEW-TRAILER

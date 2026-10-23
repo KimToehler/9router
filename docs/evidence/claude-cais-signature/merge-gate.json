@@ -1,0 +1,108 @@
+{
+  "schema": "omo.merge-gate/v2",
+  "plan": "docs/evidence/claude-cais-signature/plan.md",
+  "plan_sha256": "7530d9cd4aef84c8c23405c1ff3b5d4ebbbc9d41e8cc9ecdfd9625a8f0901b5b",
+  "reviewed_sha": "d4b25d4a6e36af4eb376de5dcc8d0df10eb1565b",
+  "diff_base": "a27f9ae0145bdb0bfd60705b69f8ca279bcd2c91",
+  "reviewers_run": [
+    "implementation-audit",
+    "strategic-risk-review"
+  ],
+  "decision_reason": "Changes the thinking payload 9router forwards on every Claude Code passthrough (Anthropic and anthropic-compatible nodes): wire-contract-api, both reviewers mandatory.",
+  "mandatory_class": "wire-contract-api",
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5"
+  ],
+  "qa": [
+    {
+      "name": "RED on unmodified source: real C keep cases fail, foreign + legacy pass",
+      "passed": true,
+      "artifact": "docs/evidence/claude-cais-signature/qa-red.txt"
+    },
+    {
+      "name": "GREEN focused claude passthrough suites",
+      "passed": true,
+      "artifact": "docs/evidence/claude-cais-signature/qa-green-focused.txt"
+    },
+    {
+      "name": "Full vitest suite vs master on head: 0 pass->fail",
+      "passed": true,
+      "artifact": "docs/evidence/claude-cais-signature/qa-suite-diff.txt"
+    },
+    {
+      "name": "HTTP capture: claude-cli UA, real CAQS history forwarded byte-identical on fix, dropped on master",
+      "passed": true,
+      "artifact": "docs/evidence/claude-cais-signature/qa-capture.txt"
+    },
+    {
+      "name": "Live Anthropic two-turn replay: turn-2 input grows by ~turn-1 thinking on fix (incl. bounded-scan re-run), not on master",
+      "passed": true,
+      "artifact": "docs/evidence/claude-cais-signature/qa-live.txt"
+    },
+    {
+      "name": "Field-dense signature rejected with bounded heap; old/new validator equivalence on 15.9k real signatures",
+      "passed": true,
+      "artifact": "docs/evidence/claude-cais-signature/qa-b1-dense.txt"
+    },
+    {
+      "name": "Consumer family unit RED/GREEN (2a9eae97, f95c47e2 vs head)",
+      "passed": true,
+      "artifact": "docs/evidence/claude-cais-signature/qa-family-redgreen.txt"
+    },
+    {
+      "name": "Consumer family HTTP capture on one anthropic-compatible node: Claude keeps, GLM / claude-gw namespace / enabled-E get no prior thinking; master contrast",
+      "passed": true,
+      "artifact": "docs/evidence/claude-cais-signature/qa-capture-family.txt"
+    }
+  ],
+  "whole_diff": {
+    "run": false,
+    "reason": "One module layer: the open-sse translator signature check, its passthrough caller and a model predicate, plus tests and evidence"
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-5.6-terra",
+      "independence": "cross-provider"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "agent": "oracle",
+      "model": "onara/cx/gpt-5.6-sol",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": "docs/evidence/claude-cais-signature/trailer-implementation-audit.txt",
+      "trailer_sha256": "5e457d81c17ebc5d6068c7c3ee2faa5c8ece67d2bcdc9c696927332d2a6e3e34",
+      "note": "Wave 3 no blockers; non-blocking: no direct duplicate-container test. Full reply local: .omo/evidence/claude-cais-signature/f2/implementation-audit-wave3.md"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "verdict": "PASS",
+      "trailer_artifact": "docs/evidence/claude-cais-signature/trailer-strategic-risk-review.txt",
+      "trailer_sha256": "ff3f07052994159be7f52c8ad71e636fbd65fb781d24e5b25d9ae3ed463d105a",
+      "note": "Wave 3 no blockers; watch: narrower ^claude- predicate in DefaultExecutor.buildHeaders. Full reply local: .omo/evidence/claude-cais-signature/f2/strategic-risk-review-wave3.md"
+    }
+  ],
+  "blockers": [
+    {
+      "id": "B1",
+      "severity": "high",
+      "location": "open-sse/utils/claudeSignature.js:51",
+      "coverage": "tests/unit/claude-cais-signature.test.js::Claude CAIS/CAQS thinking signatures rejects a field-dense signature near the size limit without per-field allocation",
+      "fix_sha": "2a1b0f8851606014553434146cb3ef62952d81aa"
+    },
+    {
+      "id": "B2",
+      "severity": "high",
+      "location": "open-sse/translator/formats/claude.js:286",
+      "coverage": "tests/unit/claude-cais-signature.test.js::Claude CAIS/CAQS thinking signatures passthrough drops Claude's $form thinking for non-Claude target $model",
+      "fix_sha": "d1db659aa9a1e5c29b4b8b661367a55e46d23101"
+    }
+  ]
+}
