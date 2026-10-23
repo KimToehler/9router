@@ -1,0 +1,12 @@
+# F2 wave 1 B1: field-dense C signature (08 04 + 12M x '18 00', 32,000,004 base64 chars)
+## RED: committed parser (41af9f30) + new regression test
+     × rejects a field-dense signature near the size limit without per-field allocation
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+AssertionError: expected 679548248 to be less than 67108864
+      Tests  1 failed | 9 skipped (10)
+## GREEN: bounded scanFields
+ ✓ unit/claude-cais-signature.test.js > Claude CAIS/CAQS thinking signatures > rejects a field-dense signature near the size limit without per-field allocation
+      Tests  1 passed | 9 skipped (10)
+## Equivalence: committed parser vs bounded scan over all local omp session signatures + 300k random 0x08 buffers
+{"distinctSignatures":15981,"accepted":15943,"oldNewDisagree":0,"random0x08Accepted":0}
+{"oldAccepted":15943,"newAccepted":15943,"sample":null}

@@ -1,7 +1,7 @@
-base {"passed":3606,"failed":240,"skipped":98,"todo":1} fix {"passed":3615,"failed":240,"skipped":98,"todo":1}
+base {"passed": 3607, "failed": 239, "skipped": 98, "todo": 1} fix {"passed": 3617, "failed": 239, "skipped": 98, "todo": 1}
 pass->fail: 0
 fail->pass: 0
-new in fix: 9
+new in fix: 10
   unit/claude-cais-signature.test.js :: Claude CAIS/CAQS thinking signatures passthrough keeps a real C-form thinking block byte-identical = passed
   unit/claude-cais-signature.test.js :: Claude CAIS/CAQS thinking signatures translated claude path keeps a real C-form thinking block = passed
   unit/claude-cais-signature.test.js :: Claude CAIS/CAQS thinking signatures drops a foreign signature: Gemini CLI default (also C-prefixed) = passed
@@ -11,3 +11,4 @@ new in fix: 9
   unit/claude-cais-signature.test.js :: Claude CAIS/CAQS thinking signatures drops a foreign signature: real signature truncated = passed
   unit/claude-cais-signature.test.js :: Claude CAIS/CAQS thinking signatures keeps legacy E-form signatures = passed
   unit/claude-cais-signature.test.js :: Claude CAIS/CAQS thinking signatures keeps legacy R-form signatures = passed
+  unit/claude-cais-signature.test.js :: Claude CAIS/CAQS thinking signatures rejects a field-dense signature near the size limit without per-field allocation = passed

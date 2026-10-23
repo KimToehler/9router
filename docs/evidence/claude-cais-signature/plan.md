@@ -35,6 +35,9 @@ Out of scope, recorded as follow-ups: `thinkingEnabled` in step 5 and in `prepar
 4. Live probe against Anthropic: a `claude` OAuth connection seeded into each local dev server's DATA_DIR from the user's Claude Code keychain login. Access token only, no refresh token, so 9router never rotates the user's login. The probe is two turns on `cc/claude-sonnet-5-5`, streaming, adaptive thinking (`display: summarized`, effort max), one `calc` tool call, `User-Agent: claude-cli/…`, and the Claude Code system prompt the client itself sends (Anthropic answers 429 to OAuth requests without it; the user decided that 9router must not inject it). Fix server vs baseline server. Recorded: turn-2 `input_tokens + cache_read_input_tokens + cache_creation_input_tokens` minus turn-1's total, against turn-1 thinking tokens → `qa-live.txt`.
 5. Prepare upstream PR text for `decolua/9router` (`upstream-draft.md`). User decision: post it only after our merge and a passing merge gate.
 
+## TODOs
+1. [x] F2 wave 1 B1 (`unbounded-field-alloc`): `parseFields` in `open-sse/utils/claudeSignature.js` allocates one object per protobuf field, so a field-dense C-prefixed signature near the 32 MiB limit costs ~736 MB of heap before it is rejected. Replace it with a scan that keeps only the wanted length-delimited field's range in O(1) memory and rejects a duplicate as soon as it is seen. Add a regression test with a multi-million-field payload: it must be rejected and the heap must stay bounded. Done: `scanFields`; evidence `qa-b1-dense.txt` (RED/GREEN + old/new equivalence on all local signatures), `qa-suite-diff.txt` re-run, `qa-live.txt` fix row re-run on this head.
+
 ## Final verification wave
 - [x] F3. Whole-diff review: `integration-review` not needed: one source module (`open-sse/utils/claudeSignature.js`) plus one test file and evidence; tick with that reason
 - [x] F1. Manual QA on the real surface, one evidence path per scenario, on the head after F3's last code commit: `docs/evidence/claude-cais-signature/qa-capture.txt` (upstream body capture, fix vs baseline) and `docs/evidence/claude-cais-signature/qa-live.txt` (live Anthropic token delta, fix vs baseline)
@@ -58,6 +61,11 @@ Out of scope, recorded as follow-ups: `thinkingEnabled` in step 5 and in `prepar
     Negative control: a validator that accepts any `C` prefix or any base64 lets `DEFAULT_THINKING_GEMINI_CLI_SIGNATURE` through, and the negative test cases fail on it.
     Observable: block types and signatures of the normalized assistant message.
     Boundary: `normalizeClaudePassthrough` export.
+  - Invariant: validating an untrusted `C…` signature uses auxiliary memory independent of its protobuf field count; a field-dense malformed signature near the 32 MiB limit is rejected without monopolising the shared gateway heap.
+    Positive witness: the field-dense regression case (`08 04` + 12M empty varint fields, no container) is rejected with heap growth under 64 MiB.
+    Negative control: the per-field-allocating parser of commit 41af9f30 grows the heap by ~680 MB on the same input and fails the case (`qa-b1-dense.txt` RED section).
+    Observable: normalized signature (placeholder) and `process.memoryUsage().heapUsed` delta around `normalizeClaudePassthrough`.
+    Boundary: `normalizeClaudePassthrough` export, the only request-facing entry besides `prepareClaudeRequest` that reaches the validator.
   - Mechanical: no existing test regresses.
     Invariant: the full vitest suite has no pass→fail transition versus master.
     Observable: per-test status diff of two `vitest --reporter=json` runs (`qa-suite-diff.txt`).
