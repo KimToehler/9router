@@ -15,6 +15,10 @@ import {
 const REAL_THINKING = "I should start by looking over the plan and the existing code to get my bearings.\n\n";
 const REAL_CAQS_SIGNATURE = "CAQSsAUKEAgTGAI4AUIIdGhpbmtpbmcSDL3rwd2ZslatshEKGRoMV7gQL80NqI85/uS/IjD469t1TfonWX4atHHoDgDKIfOww42ZAjmP6/u8QHRoKyNJxJ/JLR+Nj5zFIftx9MQqzQSzi5wt4B4nnE+TwYGUy7wtmosb96AQ+KqvHMv/nmR/EYJycwEcivpX0GQE0Y/PW1F4OwcOvv/IHiGAWc0L+HaaHjFHWcy0qSHJSdg963wFqMoaDj+ucx7KUq/I4X23SnEioUXKe+Di4SCP7iSEh3NVg/HJbayfNmf66vDeK6ix/e+gaJIKZRkUH11T/H34oJ8XZid/Hw8hcG9gOPYdvSGXIKCXwuVxDPmRtsUnTLI5tbaourRSXnff1DATEdAiPA+5DVplXDz0EmWbUQHg0LByoNsLygUkF6TKK8vMKXG/OZ0rHoduxatQi7VxbIRSvIMNv0kxZOCQ2/ck+cYfwnDPj1zCmiIYmD3mc+vvjFU39ZobwMncsI1Go3zmzGis0KfnvyGJv0hS+cewj94d5p2pLuVg1g6+UOXKQjFgbITk8yWYonAFVxDwkcNZsI9NOoY0dXJpUew91c1LEIDdBwCpAUq2fKhKkpOgcI94tJbXAmsIRZqbP9pv0yM8U1+tP0yKCmZNYQbQklsPTYvdxIcx5FoYb2C57WnSlRfrwwTFPEfBSusFxmur8rX0OlZ6LMelSlxPuTqqe5VwebY8bnVznf+apIrHshmhtIo3FIFI6wyfDse+XgrxYWzQs00tEusyWLbJMGCbln1UZDOL3O3qnPuZyeNIQpEZzXe+4VizdFZFyAAPUG8F1YA4n2F7lGEgcjK0E8aQZV4YZgJgOS5aPG2fTJbDjMmqz7BgrsB8wdd7IxMA1vRxGxmJvl+fzqAi/OmJW0SnldFc2kJWGAE=";
 
+// Real claude-sonnet-5 legacy E-form signature from an omp session; deliberately not
+// the DEFAULT placeholder constant, so a kept prior block is distinguishable from it.
+const REAL_E_SIGNATURE = "EvYHCpIECBIYAipAlQTZ2aV9gODwFVTK1cayMxorF6GCG0QITxYyS8QhALygEwhFhEj8NK0d7HTb0imGc+7wJfGqkWIjXSnZRXYe5DIPY2xhdWRlLXNvbm5ldC01OABCCHRoaW5raW5nWiQxYjE1NzI4Ny1mMDA0LTQ5NjctOTNhOC00N2JlZTZmOGJjYWVyEKBPmffhrXwJuxgfHKqvaTOIAQGaAREKD2NsYXVkZS1zb25uZXQtNagBo5nJ1gawAQLCAa4BCHUQTxpyCiJLCpaLA083CyokC6rCBCatCptxCrzAA083C5lKC70EBCatCtbQChs8A083C3caC5+KBCatCpWUA083C9WPBCatCtVeA083C9VuBCatCk0cCtg6A083C0VIC9cSBCatCgX6CgFkA083CwEACy0lBCatIAYqDANPNwXUFAWSlgUw5TIEEe1O9zoE9ZFe80IEEETKh0oEhGgimlAEWgTZBeFWYCRoAXAF2gGgAQoWcHJlZml4X2JlZm9yZV9ibG9ja192MRIg+wAPHw9qrb7K21EWeyy9OJ0rpEMHXpdSgLCE87Z8SSsiQBhrsB7vmnZ+Z25ZOax1rA4BWzaI65GusEymqbKpcjVGoHUgXASty/hvWdGME+J90Ux/gHg9Yc/Ar4YHCwo6vg4yIMLAE8hqnJLiL5ZvPYYXdo+LekTJAq3MCXv6HgmK+04fSAMSDJKTB74Rnthd3Th50xoMIdI6aRBMTu5MF8e/IjByyt1FbddXOV69e180HV3mr3iVGPvqygQwVpr1MvzqaziZ0haJ7zFnJsBUIvnvxpEqkANDG6XoOFFzBXoayyoleGQ3WOo1lwu3BLhMYh5kFh+K9WUHcSERUDaQEsJN1LnA2wlgypEdvnCLNFXfEYLzZP/Kj49q3Ycm1ahL2FXzqLzcIYIqD64OLwHe7YDhYU6FjHGFbkKc/t+uovLPi6R6RcT8E+q91npmUcIjOH8Hk7udxmpT6alRKio72HNgDMPkZmGS6paNzkBugEDDj0hnNy/wBuoBdXZNPwef7a3Pxz72P3kt9PAofMR4f2BYvZx7VwrDOh9MHD9mV2sHxNYbBEZXqNCYQYkuZ2Y5Ql1AXs7ol5MIQ4OqPFaOQuSoLsHcJIdU8XhatD46Gm3UeGPPxb4J5k2wy9F0s9ZJH5SQqtiUbrzO6CYxDsvTpm7Se5s9jdhPNunAMj/tlRH0mgHudgg4DLTTFSkee/a1Es1F0gNeh1ArhPlosQ6PbTJD3NeJlV7dkQW3M2mYFy349KHtq7VytsetqjySgHTL75nCwRd+lszYzCTpgXLHfh76q5r/u+AptPsRD7J0wj2pUGL0OkUgGAE=";
+
 const toolUse = { type: "tool_use", id: "toolu_01", name: "Read", input: { path: "plan.md" } };
 
 function history(thinkingBlock) {
@@ -53,15 +57,21 @@ describe("Claude CAIS/CAQS thinking signatures", () => {
     expect(out.messages[1].content).toEqual([original, toolUse]);
   });
 
+  // Prior reasoning must not reach a non-Claude target, whatever its signature form.
+  // With enabled thinking + tool_use the established placeholder (text ".", constant
+  // DEFAULT_THINKING_CLAUDE_SIGNATURE) still precedes tool_use, as on master and as
+  // prepareClaudeRequest sends to anthropic-compatible nodes; it carries no prior reasoning.
   it.each([
-    ["C-form", REAL_CAQS_SIGNATURE],
-    ["E-form", DEFAULT_THINKING_CLAUDE_SIGNATURE],
-  ])("passthrough to a non-Claude model drops Claude's %s thinking", (_label, signature) => {
-    const out = normalizeClaudePassthrough(history({ type: "thinking", thinking: REAL_THINKING, signature }), "glm-5.3");
-    const content = out.messages[1].content;
-    expect(content.some(b => b.thinking === REAL_THINKING)).toBe(false);
-    expect(content.some(b => b.signature === REAL_CAQS_SIGNATURE)).toBe(false);
-    expect(content.at(-1)).toEqual(toolUse);
+    { form: "C-form", signature: REAL_CAQS_SIGNATURE, model: "glm-5.3" },
+    { form: "E-form", signature: REAL_E_SIGNATURE, model: "glm-5.3" },
+    { form: "C-form", signature: REAL_CAQS_SIGNATURE, model: "claude-gw/glm-5.3" },
+    { form: "C-form", signature: REAL_CAQS_SIGNATURE, model: "mimo-v2.5-pro-claude" },
+  ])("passthrough drops Claude's $form thinking for non-Claude target $model", ({ signature, model }) => {
+    const out = normalizeClaudePassthrough(history({ type: "thinking", thinking: REAL_THINKING, signature }), model);
+    expect(out.messages[1].content).toEqual([
+      { type: "thinking", thinking: ".", signature: DEFAULT_THINKING_CLAUDE_SIGNATURE },
+      toolUse,
+    ]);
   });
 
   it.each([
