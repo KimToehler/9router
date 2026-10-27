@@ -1,0 +1,14 @@
+# Optional Traefik dashboard router (same shape as onara's). Values come from
+# /srv/traefik/.env: TRAEFIK_DASHBOARD_HOST and TRAEFIK_DASHBOARD_USERS
+# (htpasswd line; single-quote it in .env so compose keeps the `$` literal).
+services:
+  traefik:
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dashboard.entrypoints=websecure"
+      - "traefik.http.routers.dashboard.rule=Host(`${TRAEFIK_DASHBOARD_HOST}`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`))"
+      - "traefik.http.routers.dashboard.service=api@internal"
+      - "traefik.http.routers.dashboard.middlewares=auth"
+      - "traefik.http.routers.dashboard.tls.certresolver=le"
+      - "traefik.http.routers.dashboard.tls=true"
+      - "traefik.http.middlewares.auth.basicauth.users=${TRAEFIK_DASHBOARD_USERS}"

@@ -1,0 +1,108 @@
+# 9router + headroom on the dedicated VM. Shipped to /srv/9router by
+# deploy/vm/deploy.sh together with the source tree (./src) and .env.
+#
+# Networking: a `pause` container owns the network namespace (pod pattern).
+# 9router and headroom both join it, so headroom's loopback-only /v1/compress
+# guard is satisfied (9router calls http://127.0.0.1:8787), and either app can
+# crash/restart/recreate without orphaning the other's netns. (On onara,
+# headroom joined 9router's netns directly; a 9router restart cut headroom off.)
+# Traefik routes to the pause container's IP on the `traefik` network; 9router
+# listens there on :20128. No host ports are published.
+
+services:
+  netns:
+    image: registry.k8s.io/pause:3.10
+    container_name: 9router-netns
+    restart: always
+    networks:
+      - default
+      - traefik
+    labels:
+      - traefik.enable=true
+      # Required when the container is on more than one network.
+      - traefik.docker.network=traefik
+      - traefik.http.routers.9router.rule=Host(`${NINEROUTER_HOST:-router.onara.eu}`)
+      - traefik.http.routers.9router.entrypoints=websecure
+      - traefik.http.routers.9router.tls.certresolver=${TRAEFIK_CERTRESOLVER:-le}
+      - traefik.http.routers.9router.service=9router
+      - traefik.http.services.9router.loadbalancer.server.port=20128
+      # SSE streaming proxy: no response buffering.
+      - traefik.http.services.9router.loadbalancer.responseForwarding.flushInterval=-1
+
+  9router:
+    image: ${NINEROUTER_IMAGE:-9router:fork}
+    build:
+      context: ./src
+      dockerfile: Dockerfile
+      args:
+        APP_VERSION: ${APP_VERSION:-unknown}
+    container_name: 9router
+    restart: always
+    network_mode: "service:netns"
+    depends_on:
+      - netns
+    volumes:
+      - 9router-data:/app/data
+    env_file:
+      - .env
+    environment:
+      DATA_DIR: /app/data
+      PORT: "20128"
+      HOSTNAME: "0.0.0.0"
+      NODE_ENV: production
+      # TLS terminates at Traefik.
+      AUTH_COOKIE_SECURE: "true"
+      # Same netns as headroom: loopback passes headroom's /v1/compress guard.
+      HEADROOM_URL: http://127.0.0.1:8787
+      # Sized for the cold-start turn after a headroom restart (empty CCR cache
+      # re-compresses all prior turns). Fail-open if exceeded.
+      HEADROOM_TIMEOUT_MS: "20000"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:20128/api/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 60s
+      retries: 3
+
+  headroom:
+    image: ${HEADROOM_IMAGE:-rg.nl-ams.scw.cloud/onara/headroom:latest}
+    container_name: headroom
+    restart: always
+    network_mode: "service:netns"
+    depends_on:
+      - netns
+    # Bind loopback only: the image's default 0.0.0.0 would expose headroom's
+    # unauthenticated forward-proxy routes (/v1/messages -> api.anthropic.com,
+    # ...) on the netns' bridge IPs, i.e. to every container on `traefik`.
+    # An explicit CLI arg beats HEADROOM_HOST, so `command:` must be overridden.
+    command: ["--host", "127.0.0.1", "--port", "8787"]
+    environment:
+      HEADROOM_HOST: "127.0.0.1"
+      HOME: /home/nonroot
+      # Accuracy-first profile: proxy_mode=cache (delta-only, keeps the upstream
+      # prompt-prefix cache intact), lossless-first, code-aware AST on,
+      # protect_reads on.
+      HEADROOM_SAVINGS_PROFILE: coding
+      HEADROOM_MODE: cache
+      # Kompress ONNX has a single execution slot; >1 worker only makes threads
+      # time out on the 25ms acquire and skip chunks uncompressed.
+      HEADROOM_COMPRESS_WORKERS: "1"
+      # Leave messages under 64 tokens byte-exact (profile default 25).
+      HEADROOM_MIN_TOKENS: "64"
+      # Keep HF/ONNX models on the volume so image updates don't re-download.
+      HEADROOM_WORKSPACE_DIR: /home/nonroot/.headroom
+      HF_HOME: /home/nonroot/.headroom/hf
+    volumes:
+      - headroom-workspace:/home/nonroot/.headroom
+
+volumes:
+  9router-data:
+    name: 9router-data
+  headroom-workspace:
+    name: headroom-workspace
+
+networks:
+  # Created by deploy.sh (`docker network create traefik`), shared with Traefik.
+  traefik:
+    external: true
+  default: {}
