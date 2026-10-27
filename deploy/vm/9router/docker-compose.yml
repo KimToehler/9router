@@ -1,13 +1,19 @@
-# 9router + headroom on the dedicated VM. Shipped to /srv/9router by
+# 9router (+ optional headroom) on the dedicated VM. Shipped to /srv/9router by
 # deploy/vm/deploy.sh together with the source tree (./src) and .env.
 #
 # Networking: a `pause` container owns the network namespace (pod pattern).
 # 9router and headroom both join it, so headroom's loopback-only /v1/compress
 # guard is satisfied (9router calls http://127.0.0.1:8787), and either app can
-# crash/restart/recreate without orphaning the other's netns. (On onara,
-# headroom joined 9router's netns directly; a 9router restart cut headroom off.)
-# Traefik routes to the pause container's IP on the `traefik` network; 9router
-# listens there on :20128. No host ports are published.
+# crash/restart/recreate without orphaning the other's netns. Traefik routes to
+# the pause container's IP on the `traefik` network; 9router listens there on
+# :20128. No host ports are published.
+#
+# headroom is OFF by default (profile `headroom`). To enable it:
+#   1. add COMPOSE_PROFILES=headroom to the secrets' 9router.env, run deploy.sh
+#   2. turn on Headroom in the dashboard (Token Saver) and set its timeout to
+#      ~20000 ms there: the dashboard setting headroomTimeoutMs (default 3000)
+#      always wins over HEADROOM_TIMEOUT_MS, and the first turn after a headroom
+#      restart re-compresses the whole history.
 
 services:
   netns:
@@ -52,11 +58,9 @@ services:
       NODE_ENV: production
       # TLS terminates at Traefik.
       AUTH_COOKIE_SECURE: "true"
-      # Same netns as headroom: loopback passes headroom's /v1/compress guard.
+      # Default headroom URL for a fresh DB (same netns: loopback passes
+      # headroom's /v1/compress guard). Only used when headroom is enabled.
       HEADROOM_URL: http://127.0.0.1:8787
-      # Sized for the cold-start turn after a headroom restart (empty CCR cache
-      # re-compresses all prior turns). Fail-open if exceeded.
-      HEADROOM_TIMEOUT_MS: "20000"
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:20128/api/health"]
       interval: 30s
@@ -65,6 +69,7 @@ services:
       retries: 3
 
   headroom:
+    profiles: ["headroom"]
     image: ${HEADROOM_IMAGE:-rg.nl-ams.scw.cloud/onara/headroom:latest}
     container_name: headroom
     restart: always

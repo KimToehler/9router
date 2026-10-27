@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deploy the 9router fork + headroom + Traefik to the dedicated VM.
+# Deploy the 9router fork (+ optional headroom) + Traefik to the dedicated VM.
 #
 #   deploy/vm/deploy.sh [--standby] [--ref <git-ref>] root@<vm-ip>
 #
@@ -11,7 +11,8 @@
 #   /srv/traefik/acme.json            $SECRETS/acme.json, ONLY if the VM has none
 #                                     (never clobbers certificates renewed there)
 #   /root/.docker/config.json         $SECRETS/registry.json (headroom image pull)
-# then builds 9router:fork-<sha> natively on the VM, pulls headroom/pause/traefik,
+# then builds 9router:fork-<sha> natively on the VM, pulls pause/traefik (and
+# headroom if COMPOSE_PROFILES=headroom is in 9router.env),
 # `docker compose up -d`, waits for the healthcheck and probes
 # https://$NINEROUTER_HOST/api/health through Traefik on the VM's IP.
 #
@@ -104,16 +105,21 @@ vm "docker network inspect traefik >/dev/null 2>&1 || docker network create trae
 cd /srv/traefik && docker compose $TRAEFIK_FILES pull -q && docker compose $TRAEFIK_FILES up -d --remove-orphans"
 
 echo "== Building $IMAGE on the VM"
-vm 'cd /srv/9router && docker compose pull -q netns headroom && docker compose build 9router'
+vm 'cd /srv/9router && docker compose pull -q --ignore-buildable && docker compose build 9router'
 
 echo "== Rolling out"
+# headroom is profile-gated; `up` neither starts nor removes a disabled profile's
+# container, so remove it explicitly when the profile is off.
 # Compose recreates `netns` on config change but NOT the services joined to it
 # (network_mode: service:netns); they would keep the dead namespace and Traefik
 # answers 502. Recreate any member whose namespace is not the current netns.
-vm 'cd /srv/9router && docker compose up -d --remove-orphans
+vm 'cd /srv/9router && active="$(docker compose config --services)"
+case " $(echo $active) " in *" headroom "*) ;; *) docker compose rm -sf headroom ;; esac
+docker compose up -d --remove-orphans
 ns="container:$(docker inspect -f "{{.Id}}" 9router-netns)"
 stale=""
-for c in 9router headroom; do
+for c in $active; do
+  [ "$c" = netns ] && continue
   [ "$(docker inspect -f "{{.HostConfig.NetworkMode}}" "$c")" = "$ns" ] || stale="$stale $c"
 done
 if [ -n "$stale" ]; then
