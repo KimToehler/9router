@@ -107,7 +107,19 @@ echo "== Building $IMAGE on the VM"
 vm 'cd /srv/9router && docker compose pull -q netns headroom && docker compose build 9router'
 
 echo "== Rolling out"
-vm 'cd /srv/9router && docker compose up -d --remove-orphans'
+# Compose recreates `netns` on config change but NOT the services joined to it
+# (network_mode: service:netns); they would keep the dead namespace and Traefik
+# answers 502. Recreate any member whose namespace is not the current netns.
+vm 'cd /srv/9router && docker compose up -d --remove-orphans
+ns="container:$(docker inspect -f "{{.Id}}" 9router-netns)"
+stale=""
+for c in 9router headroom; do
+  [ "$(docker inspect -f "{{.HostConfig.NetworkMode}}" "$c")" = "$ns" ] || stale="$stale $c"
+done
+if [ -n "$stale" ]; then
+  echo "netns changed; recreating:$stale"
+  docker compose up -d --force-recreate --no-deps $stale
+fi'
 
 echo "== Waiting for 9router healthcheck"
 vm 'for i in $(seq 1 60); do

@@ -12,11 +12,20 @@
 # On the VM only the 9router container is stopped while its volume is replaced;
 # headroom and Traefik keep running. Re-run right before the DNS switch so the
 # VM gets the freshest OAuth tokens (see deploy.sh --standby).
+#
+# After the copy, SETTINGS_PATCH (JSON merge-patch) is applied to the app
+# settings. Default: headroom ON with a 20s compress timeout (the dashboard's
+# headroomTimeoutMs setting, default 3000, overrides HEADROOM_TIMEOUT_MS, so the
+# cold first turn after a headroom restart needs it set here). SETTINGS_PATCH=
+# (empty) keeps onara's settings unchanged.
 set -euo pipefail
 
 VM_SSH="${1:?usage: migrate-data.sh root@<vm-ip>}"
 ONARA_SSH="${ONARA_SSH:-root@2001:bc8:5090:1bc4:dc00:ff:fe42:60ab}"
 SNAP=/tmp/9router-migrate.sqlite
+DEFAULT_SETTINGS_PATCH='{"headroomEnabled":true,"headroomTimeoutMs":20000}'
+SETTINGS_PATCH="${SETTINGS_PATCH-$DEFAULT_SETTINGS_PATCH}"
+case "$SETTINGS_PATCH" in *"'"*) echo "ERROR: SETTINGS_PATCH must not contain single quotes" >&2; exit 2 ;; esac
 
 onara() { ssh -o BatchMode=yes -o ConnectTimeout=15 "$ONARA_SSH" "$@"; }
 vm() { ssh -o BatchMode=yes -o ConnectTimeout=15 "$VM_SSH" "$@"; }
@@ -59,6 +68,16 @@ echo "integrity_check: $result"
 [ "$result" = ok ]
 echo "tables: $(sqlite3 /v/db/data.sqlite "SELECT count(*) FROM sqlite_master WHERE type='table';")"
 SH
+
+if [ -n "$SETTINGS_PATCH" ]; then
+  echo "== Applying settings patch $SETTINGS_PATCH"
+  vm 'docker run --rm -i -v 9router-data:/v alpine sh' <<SH
+set -e
+apk add -q --no-cache sqlite >/dev/null
+sqlite3 /v/db/data.sqlite "UPDATE settings SET data = json_patch(data, '$SETTINGS_PATCH'); SELECT json_extract(data, '\$.headroomEnabled'), json_extract(data, '\$.headroomTimeoutMs') FROM settings;"
+chown 1000:1000 /v/db/data.sqlite*
+SH
+fi
 
 echo "== Starting 9router on the VM"
 vm 'cd /srv/9router && docker compose up -d 9router'
