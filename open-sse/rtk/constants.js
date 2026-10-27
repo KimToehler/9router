@@ -16,6 +16,7 @@ const envInt = (name, def) => {
 
 export const RAW_CAP = envInt("RAW_CAP", 10 * 1024 * 1024);          // 10 MiB
 export const MIN_COMPRESS_SIZE = envInt("MIN_COMPRESS_SIZE", 500);   // bytes; skip tiny blobs
+export const HEADROOM_TOOL_OUTPUT_MAX_DEPTH = envInt("HEADROOM_TOOL_OUTPUT_MAX_DEPTH", 8); // bound native tool-output traversal
 export const DETECT_WINDOW = envInt("DETECT_WINDOW", 1024);          // autodetect peeks first N chars
 export const GIT_DIFF_HUNK_MAX_LINES = envInt("GIT_DIFF_HUNK_MAX_LINES", 100); // per-hunk line cap
 export const GIT_DIFF_CONTEXT_KEEP = envInt("GIT_DIFF_CONTEXT_KEEP", 3);       // context lines around changes

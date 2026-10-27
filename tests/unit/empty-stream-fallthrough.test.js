@@ -108,6 +108,7 @@ describe("empty stream detection", () => {
       ["gemini functionCall", 'data: {"candidates":[{"content":{"parts":[{"functionCall":{"name":"x"}}]}}]}\n\n'],
       ["gemini text", 'data: {"candidates":[{"content":{"parts":[{"text":"hi"}]}}]}\n\n'],
       ["responses output_text delta", 'event: response.output_text.delta\ndata: {"type":"response.output_text.delta","delta":"hi"}\n\n'],
+      ["responses argument-less function_call item", 'event: response.output_item.added\ndata: {"type":"response.output_item.added","item":{"type":"function_call","name":"f","arguments":""}}\n\n'],
     ];
     for (const [name, body] of cases) {
       it(`#then ${name} counts as content`, async () => {
@@ -115,6 +116,27 @@ describe("empty stream detection", () => {
         expect(peek.hasContent).toBe(true);
       });
     }
+  });
+
+  describe("#given a content-less stream that ends on a content-filter block", () => {
+    const cases = [
+      ["openai content_filter", 'data: {"choices":[{"delta":{"role":"assistant"},"finish_reason":null}]}\n\ndata: {"choices":[{"delta":{},"finish_reason":"content_filter"}]}\n\n'],
+      ["claude refusal", 'data: {"type":"message_start","message":{"id":"m","content":[]}}\n\ndata: {"type":"message_delta","delta":{"stop_reason":"refusal"}}\n\n'],
+      ["gemini SAFETY", 'data: {"candidates":[{"content":{"parts":[]},"finishReason":"SAFETY"}]}\n\n'],
+      ["responses incomplete content_filter", 'data: {"type":"response.incomplete","response":{"status":"incomplete","incomplete_details":{"reason":"content_filter"}}}\n\n'],
+    ];
+    for (const [name, body] of cases) {
+      it(`#then ${name} passes through instead of becoming a retryable empty stream`, async () => {
+        const peek = await peekStreamForContent(sseResponse(body));
+        expect(peek.hasContent).toBe(true);
+        expect(peek.reason).toBe("no-retry-finish");
+        expect(await drain(peek.replacementBody)).toBe(body);
+      });
+    }
+    it("#then a gemini MALFORMED_FUNCTION_CALL abort is still empty", async () => {
+      const peek = await peekStreamForContent(sseResponse('data: {"candidates":[{"content":{"parts":[]},"finishReason":"MALFORMED_FUNCTION_CALL"}]}\n\n'));
+      expect(peek.hasContent).toBe(false);
+    });
   });
 
   describe("#given a body whose lock is already held", () => {

@@ -12,6 +12,12 @@
 // across formats and keyed on "produced content" rather than known error strings.
 
 import { dbg } from "./debugLog.js";
+import { isNoRetryFinish } from "../services/emptyFailover.js";
+import { toOpenAIFinish } from "../translator/concerns/finishReason.js";
+import { FORMATS } from "../translator/formats.js";
+import { RESPONSES_ITEM } from "../translator/schema/blocks.js";
+import { OPENAI_FINISH, RESPONSES_INCOMPLETE_REASON } from "../translator/schema/finishReasons.js";
+import { CLAUDE_EVENT, RESPONSES_EVENT } from "../translator/schema/streamEvents.js";
 
 // Event types that carry assistant output, keyed by the discriminator each format
 // puts on the frame. Matched against parsed JSON rather than raw text: substring
@@ -22,8 +28,13 @@ const CONTENT_EVENT_TYPES = new Set([
   "content_block_start",
   "response.output_text.delta",
   "response.function_call_arguments.delta",
+  RESPONSES_EVENT.CUSTOM_TOOL_CALL_INPUT_DELTA,
   "response.reasoning_summary_text.delta",
 ]);
+
+// Responses output items that are a tool call on their own, even when the call
+// streams no argument deltas (an argument-less call is a complete answer).
+const RESPONSES_TOOL_ITEMS = new Set([RESPONSES_ITEM.FUNCTION_CALL, RESPONSES_ITEM.CUSTOM_TOOL_CALL]);
 
 // An upstream error delivered inside a 200 body is also "not empty" for our
 // purposes: the existing error paths already classify and act on those, and we
@@ -63,6 +74,13 @@ function scanFrames(buffer) {
       verdict = "content";
       break;
     }
+    // A content-filter block is a legitimate empty answer that recurs on every
+    // retry and every combo member; pass it through so the client sees the block
+    // and the combo peek (services/emptyFailover.js) declines to fall through.
+    if (isNoRetryFinish(frameFinishReason(frame))) {
+      verdict = "no-retry-finish";
+      break;
+    }
   }
   return { verdict, rest };
 }
@@ -75,6 +93,9 @@ function frameHasContent(frame) {
   if (!frame || typeof frame !== "object") return false;
 
   if (CONTENT_EVENT_TYPES.has(frame.type)) return true;
+  if ((frame.type === RESPONSES_EVENT.OUTPUT_ITEM_ADDED || frame.type === RESPONSES_EVENT.OUTPUT_ITEM_DONE)
+    && RESPONSES_TOOL_ITEMS.has(frame.item?.type)) return true;
+  if (frame.type === RESPONSES_EVENT.OUTPUT_TEXT_DONE && nonEmptyString(frame.text)) return true;
 
   const choice = Array.isArray(frame.choices) ? frame.choices[0] : null;
   const delta = choice?.delta ?? choice?.message;
@@ -92,6 +113,22 @@ function frameHasContent(frame) {
   }
 
   return false;
+}
+
+// Finish reason of an upstream wire frame, in the hub (OpenAI) vocabulary.
+function frameFinishReason(frame) {
+  if (!frame || typeof frame !== "object") return null;
+  const choice = Array.isArray(frame.choices) ? frame.choices[0] : null;
+  if (choice?.finish_reason) return choice.finish_reason;
+  if (frame.type === CLAUDE_EVENT.MESSAGE_DELTA && frame.delta?.stop_reason) {
+    return toOpenAIFinish(frame.delta.stop_reason, FORMATS.CLAUDE);
+  }
+  if (frame.type === RESPONSES_EVENT.INCOMPLETE
+    && frame.response?.incomplete_details?.reason === RESPONSES_INCOMPLETE_REASON.CONTENT_FILTER) {
+    return OPENAI_FINISH.CONTENT_FILTER;
+  }
+  const geminiFinish = frame.candidates?.[0]?.finishReason;
+  return geminiFinish ? toOpenAIFinish(geminiFinish, FORMATS.GEMINI) : null;
 }
 
 // Response headers are withheld until the peek resolves, so this also caps how

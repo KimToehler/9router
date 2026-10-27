@@ -204,10 +204,10 @@ describe("checkFallbackError payload-fault classification", () => {
     });
   });
 
-  it("stops the chain for a generic 400 instead of burning every combo rung", () => {
-    // No evidence another provider would accept it: a malformed body or a context
-    // overflow fails identically everywhere, so surface the real error at once.
-    expect(checkFallbackError(400, "bad schema")).toEqual({ shouldFallback: false, cooldownMs: 0 });
+  it("keeps a generic 400 off the account loop and marks it request-scoped for the combo loop", () => {
+    // No evidence the credential is at fault, so the account is neither locked nor
+    // rotated; the combo loop may still try a member on a different provider.
+    expect(checkFallbackError(400, "bad schema")).toEqual({ shouldFallback: false, cooldownMs: 0, requestScoped: true });
   });
 
   it("keeps treating a 400 whose body says rate limit as a quota error", () => {

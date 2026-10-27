@@ -61,17 +61,22 @@ const COOLDOWN = {
  *     The combo loop still falls through: a different provider/model family may
  *     accept a body this one rejects. Reserve it for failures with positive
  *     evidence of provider-specific incompatibility - a generic 400 has none and
- *     must instead stop both loops via the unmatched-4xx rule in
- *     checkFallbackError(), so the real error reaches the caller immediately.
+ *     is handled by the unmatched-4xx rule in checkFallbackError() instead
+ *     (requestScoped: no account lock, combo advances, first rejection returned).
  */
 export const ERROR_RULES = [
   // --- Text-based rules (checked first, order = priority) ---
   { provider: "codex", text: "model is not supported when using codex with a chatgpt account", cooldownMs: MAX_RATE_LIMIT_COOLDOWN_MS },
+  // Intl gateway blocks affect the account/IP, so let the connection back off.
+  { provider: "codebuddy-intl", text: "request illegal", backoff: true },
+  { provider: "codebuddy-intl", text: "conversation id missing", backoff: true },
   { text: "no credentials",           cooldownMs: COOLDOWN.long },
   { text: "request not allowed",      cooldownMs: COOLDOWN.short },
   { text: "rate limit",               backoff: true },
   { text: "too many requests",        backoff: true },
   { text: "quota exceeded",           backoff: true },
+  { text: "insufficient credit",      backoff: true },
+  { text: "credit balance is too low", backoff: true },
   { text: "capacity",                 backoff: true },
   { text: "overloaded",               backoff: true },
   // An empty 200 stream repeats for the same body while neighbouring requests on
@@ -85,9 +90,9 @@ export const ERROR_RULES = [
 
   // --- Status-based rules (fallback when text doesn't match) ---
   // NOTE: there is deliberately no blanket `{ status: 400 }` rule. An unmatched
-  // request-scoped 4xx is handled after this loop in checkFallbackError(), which
-  // stops fallback entirely rather than burning every combo member on a body that
-  // will be rejected identically (context overflow, malformed params).
+  // request-scoped 4xx is handled after this loop in checkFallbackError(): it
+  // never locks the account; the combo loop advances to the next member and, if
+  // none serves the request, returns the first member's own rejection.
   { status: 401, cooldownMs: COOLDOWN.long },
   { status: 402, cooldownMs: COOLDOWN.long },
   { status: 403, cooldownMs: COOLDOWN.long },
