@@ -110,3 +110,4 @@ docker-compose.yml.bak
 start-dev-silent.cjs
 debug.log
 .scratch/
+clouds.yaml
