@@ -91,6 +91,7 @@ describe("empty stream detection", () => {
       ["openai terminal-only turn", 'data: {"choices":[{"delta":{"role":"assistant"},"finish_reason":null}]}\n\ndata: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n'],
       ["openai empty tool_calls array", 'data: {"choices":[{"delta":{"content":"","tool_calls":[]}}]}\n\n'],
       ["gemini empty parts", 'data: {"candidates":[{"content":{"parts":[]}}]}\n\n'],
+      ["cloud code (antigravity/gemini-cli) empty parts", 'data: {"response":{"candidates":[{"content":{"parts":[]}}]},"traceId":"t"}\n\n'],
     ];
     for (const [name, body] of cases) {
       it(`#then ${name} is still empty`, async () => {
@@ -107,6 +108,8 @@ describe("empty stream detection", () => {
       ["claude tool_use", 'data: {"type":"content_block_start","content_block":{"type":"tool_use","name":"echo"}}\n\n'],
       ["gemini functionCall", 'data: {"candidates":[{"content":{"parts":[{"functionCall":{"name":"x"}}]}}]}\n\n'],
       ["gemini text", 'data: {"candidates":[{"content":{"parts":[{"text":"hi"}]}}]}\n\n'],
+      ["cloud code (antigravity/gemini-cli) text", 'data: {"response":{"candidates":[{"content":{"role":"model","parts":[{"text":"hi"}]}}]},"traceId":"t"}\n\n'],
+      ["cloud code (antigravity/gemini-cli) functionCall", 'data: {"response":{"candidates":[{"content":{"role":"model","parts":[{"functionCall":{"name":"x"}}]}}]},"traceId":"t"}\n\n'],
       ["responses output_text delta", 'event: response.output_text.delta\ndata: {"type":"response.output_text.delta","delta":"hi"}\n\n'],
       ["responses argument-less function_call item", 'event: response.output_item.added\ndata: {"type":"response.output_item.added","item":{"type":"function_call","name":"f","arguments":""}}\n\n'],
     ];
@@ -123,6 +126,7 @@ describe("empty stream detection", () => {
       ["openai content_filter", 'data: {"choices":[{"delta":{"role":"assistant"},"finish_reason":null}]}\n\ndata: {"choices":[{"delta":{},"finish_reason":"content_filter"}]}\n\n'],
       ["claude refusal", 'data: {"type":"message_start","message":{"id":"m","content":[]}}\n\ndata: {"type":"message_delta","delta":{"stop_reason":"refusal"}}\n\n'],
       ["gemini SAFETY", 'data: {"candidates":[{"content":{"parts":[]},"finishReason":"SAFETY"}]}\n\n'],
+      ["cloud code (antigravity/gemini-cli) SAFETY", 'data: {"response":{"candidates":[{"content":{"parts":[]},"finishReason":"SAFETY"}]}}\n\n'],
       ["responses incomplete content_filter", 'data: {"type":"response.incomplete","response":{"status":"incomplete","incomplete_details":{"reason":"content_filter"}}}\n\n'],
     ];
     for (const [name, body] of cases) {

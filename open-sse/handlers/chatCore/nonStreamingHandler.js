@@ -1,6 +1,7 @@
 import { FORMATS } from "../../translator/formats.js";
 import { needsTranslation } from "../../translator/index.js";
 import { openAICompletionToClaudeMessage } from "../../translator/concerns/claudeMessage.js";
+import { toOpenAIUsage } from "../../translator/concerns/usage.js";
 import { ollamaBodyToOpenAI } from "../../translator/response/ollama-to-openai.js";
 import { addBufferToUsage, filterUsageForFormat } from "../../utils/usageTracking.js";
 import { createErrorResult } from "../../utils/error.js";
@@ -155,16 +156,10 @@ export function translateNonStreamingResponse(responseBody, targetFormat, source
       choices: [{ index: 0, message, finish_reason: finishReason }]
     };
 
-    if (usage) {
-      result.usage = {
-        prompt_tokens: (usage.promptTokenCount || 0) + (usage.thoughtsTokenCount || 0),
-        completion_tokens: usage.candidatesTokenCount || 0,
-        total_tokens: usage.totalTokenCount || 0
-      };
-      if (usage.thoughtsTokenCount > 0) {
-        result.usage.completion_tokens_details = { reasoning_tokens: usage.thoughtsTokenCount };
-      }
-    }
+    // Same mapping as the streaming translator (gemini-to-openai): cached prompt
+    // tokens surface as prompt_tokens_details.cached_tokens, thoughts count as output.
+    const openAIUsage = toOpenAIUsage(usage, "gemini");
+    if (openAIUsage) result.usage = openAIUsage;
     return result;
   }
 

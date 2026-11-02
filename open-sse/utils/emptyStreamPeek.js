@@ -107,7 +107,7 @@ function frameHasContent(frame) {
   }
   if (nonEmptyString(choice?.text)) return true;
 
-  const parts = frame.candidates?.[0]?.content?.parts;
+  const parts = geminiCandidate(frame)?.content?.parts;
   if (Array.isArray(parts)) {
     return parts.some((p) => nonEmptyString(p?.text) || p?.functionCall || p?.inlineData);
   }
@@ -127,8 +127,15 @@ function frameFinishReason(frame) {
     && frame.response?.incomplete_details?.reason === RESPONSES_INCOMPLETE_REASON.CONTENT_FILTER) {
     return OPENAI_FINISH.CONTENT_FILTER;
   }
-  const geminiFinish = frame.candidates?.[0]?.finishReason;
+  const geminiFinish = geminiCandidate(frame)?.finishReason;
   return geminiFinish ? toOpenAIFinish(geminiFinish, FORMATS.GEMINI) : null;
+}
+
+// First Gemini candidate of a frame. Cloud Code upstreams (antigravity, gemini-cli)
+// wrap the generateContent payload as `{ response: { candidates } }`; plain Gemini
+// and Vertex put `candidates` at the root.
+function geminiCandidate(frame) {
+  return (frame.candidates ?? frame.response?.candidates)?.[0];
 }
 
 // Response headers are withheld until the peek resolves, so this also caps how
